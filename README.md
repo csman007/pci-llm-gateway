@@ -1,6 +1,6 @@
 # PCI LLM Gateway
 
-[![Tests](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml/badge.svg)](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml) [![Coverage](https://codecov.io/gh/csman007/pci-llm-gateway/branch/main/graph/badge.svg)](https://codecov.io/gh/csman007/pci-llm-gateway) ![Python](https://img.shields.io/badge/python-3.12-blue)
+[![Tests](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml/badge.svg)](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml) [![Coverage](https://codecov.io/gh/csman007/pci-llm-gateway/branch/main/graph/badge.svg)](https://codecov.io/gh/csman007/pci-llm-gateway) [![Security](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml/badge.svg)](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml) ![Python](https://img.shields.io/badge/python-3.12-blue)
 
 A secure API gateway for routing LLM inference requests with PII detection, redaction, and output filtering to meet PCI DSS compliance requirements. Includes an agentic layer with Claude tool use, multi-agent orchestration, extended thinking, SSE streaming, and LLM-as-judge evaluation.
 
