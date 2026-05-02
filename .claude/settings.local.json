@@ -18,7 +18,9 @@
       "Bash(tflint --chdir=infra/terraform)",
       "Bash(python3 -m pytest --cov=services --cov-report=term-missing -q)",
       "Bash(pyenv versions *)",
-      "Read(//Users/csbdeak/.pyenv/versions/**)"
+      "Read(//Users/csbdeak/.pyenv/versions/**)",
+      "Bash(git check-ignore *)",
+      "Bash(git rm *)"
     ]
   }
 }

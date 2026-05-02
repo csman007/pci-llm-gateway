@@ -18,6 +18,8 @@ Agent layer (POST /v1/agent/run, /v1/agent/stream):
     → Client
 ```
 
+![AWS Architecture](architecture/aws-architecture.png)
+
 ## Services
 
 | Service | Description |
@@ -146,6 +148,8 @@ pytest tests/test_redaction.py::test_pan_detected
 ```
 
 ## Deployment
+
+![Cost breakdown](architecture/aws-cost-breakdown.png)
 
 The app runs as a **container image on AWS Lambda** — not a zip file. Lambda's 250 MB zip limit is too small for this dependency set, so the image is stored in ECR and Lambda pulls it on invocation.
 
@@ -295,33 +299,36 @@ CVV and EXPIRY require keyword context (e.g. `expiry: 09/26`) to avoid false pos
 
 ### Case 1 — payment card number (blocked)
 
-**Client sends:**
-```json
-{
-  "model": "claude-haiku-4-5-20251001",
-  "prompt": "Can you summarize this transaction? Card: 4532015112830366, amount: $42.00, merchant: ACME Corp."
-}
+```bash
+curl -s -X POST http://localhost:8000/v1/inference \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5-20251001",
+    "prompt": "Can you summarize this transaction? Card: 4532015112830366, amount: $42.00, merchant: ACME Corp."
+  }'
 ```
 
-**Gateway response — `400 Bad Request`:**
-```json
-{
-  "detail": "Request blocked: contains restricted PII type(s): PAN"
-}
+```
+HTTP/1.1 400 Bad Request
+
+{"detail": "Request blocked: contains restricted PII type(s): PAN"}
 ```
 
-The number `4532015112830366` passes the Luhn checksum, so it is classified as a PAN. The request never reaches the LLM provider.
+`4532015112830366` passes the Luhn checksum, so it is classified as a PAN. The request is rejected before it reaches the LLM provider.
 
 ---
 
 ### Case 2 — email address (redacted and restored)
 
-**Client sends:**
-```json
-{
-  "model": "claude-haiku-4-5-20251001",
-  "prompt": "Draft a fraud alert for alice@example.com about suspicious activity on her account."
-}
+```bash
+curl -s -X POST http://localhost:8000/v1/inference \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5-20251001",
+    "prompt": "Draft a fraud alert for alice@example.com about suspicious activity on her account."
+  }'
 ```
 
 **What the gateway forwards to the LLM:**
