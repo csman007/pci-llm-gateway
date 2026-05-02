@@ -18,6 +18,6 @@ ignore:
   - "infra/**"
 
 comment:
-  layout: "reach,diff,flags,files"
-  behavior: default   # post once, update on new commits
-  require_changes: true   # stay quiet on PRs that don't affect coverage
+  layout: "header,reach,diff,files"
+  behavior: default         # post once, update on new commits
+  require_changes: true     # stay quiet on PRs that don't affect coverage
