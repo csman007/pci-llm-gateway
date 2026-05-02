@@ -15,7 +15,10 @@
       "Bash(tfsec infra/terraform)",
       "Bash(xargs ls *)",
       "Bash(python *)",
-      "Bash(tflint --chdir=infra/terraform)"
+      "Bash(tflint --chdir=infra/terraform)",
+      "Bash(python3 -m pytest --cov=services --cov-report=term-missing -q)",
+      "Bash(pyenv versions *)",
+      "Read(//Users/csbdeak/.pyenv/versions/**)"
     ]
   }
 }

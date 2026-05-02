@@ -1,5 +1,7 @@
 # PCI LLM Gateway
 
+![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen) ![Python](https://img.shields.io/badge/python-3.12-blue) ![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
+
 A secure API gateway for routing LLM inference requests with PII detection, redaction, and output filtering to meet PCI DSS compliance requirements. Includes an agentic layer with Claude tool use, multi-agent orchestration, extended thinking, SSE streaming, and LLM-as-judge evaluation.
 
 ## Architecture
@@ -288,6 +290,105 @@ CVV and EXPIRY require keyword context (e.g. `expiry: 09/26`) to avoid false pos
 | Invalid API key | `401` |
 | Rate limited | `429` |
 | Other provider error | `502` |
+
+## Example: prompt with PII
+
+### Case 1 — payment card number (blocked)
+
+**Client sends:**
+```json
+{
+  "model": "claude-haiku-4-5-20251001",
+  "prompt": "Can you summarize this transaction? Card: 4532015112830366, amount: $42.00, merchant: ACME Corp."
+}
+```
+
+**Gateway response — `400 Bad Request`:**
+```json
+{
+  "detail": "Request blocked: contains restricted PII type(s): PAN"
+}
+```
+
+The number `4532015112830366` passes the Luhn checksum, so it is classified as a PAN. The request never reaches the LLM provider.
+
+---
+
+### Case 2 — email address (redacted and restored)
+
+**Client sends:**
+```json
+{
+  "model": "claude-haiku-4-5-20251001",
+  "prompt": "Draft a fraud alert for alice@example.com about suspicious activity on her account."
+}
+```
+
+**What the gateway forwards to the LLM:**
+```
+Draft a fraud alert for [EMAIL_3F9A2C1B] about suspicious activity on her account.
+```
+
+**Raw LLM response (before restoration):**
+```
+Subject: Fraud Alert — Action Required
+
+Dear [EMAIL_3F9A2C1B],
+
+We detected suspicious activity on the account associated with [EMAIL_3F9A2C1B]. ...
+```
+
+**What the client receives (`200 OK`):**
+```json
+{
+  "response": "Subject: Fraud Alert — Action Required\n\nDear alice@example.com,\n\nWe detected suspicious activity on the account associated with alice@example.com. ..."
+}
+```
+
+The placeholder token `[EMAIL_3F9A2C1B]` is generated fresh per request (UUID-keyed). The LLM never sees the real address; the token map is used to restore it in the response before returning to the caller.
+
+---
+
+### Case 3 — PII in the LLM response (output leak blocked)
+
+If the LLM response contains a PAN or SSN that was **not** in the original token map — for example, a hallucinated or cached value — the `LeakageDetector` catches it and the gateway returns `502` rather than exposing the data to the client.
+
+---
+
+## Threat model
+
+### What we mitigated
+
+| Threat | Control |
+|---|---|
+| Card data (PAN/CVV/SSN/EXPIRY) sent to an LLM provider | Policy engine blocks the request at `400` before the prompt is forwarded |
+| PII leakage in LLM responses | `LeakageDetector` re-scans the raw response; any PII not in the original token map triggers a `502` |
+| API key theft | Keys live only in Secrets Manager; Lambda env vars hold ARNs, not values; fetched once per cold start with `@lru_cache` |
+| Timing-oracle attack on the API key check | `hmac.compare_digest` runs in constant time regardless of where comparison fails |
+| Network interception of LLM calls | VPC private subnets; HTTPS-only egress (port 443); Lambda has no public ingress — only API Gateway can invoke it |
+| Unauthorized access | Dual-layer auth: `x-api-key` header validated before JWT; Cognito RS256 in production |
+| Arbitrary code execution via the calculator tool | AST inspection whitelists numeric literals and arithmetic operators before evaluation — `eval()` is never called on raw user input |
+| PII exfiltration through agent tool I/O | All agent inputs, tool results, and final responses pass through the same `PIIDetector → PolicyEngine → Redactor` pipeline as the inference endpoint |
+| Sensitive data in Terraform state | State stored in an encrypted, versioned S3 bucket with DynamoDB locking; `terraform.tfvars` is gitignored and never committed |
+
+### Residual / accepted risk
+
+| Risk | Why accepted |
+|---|---|
+| False negatives on obfuscated PANs | Luhn validation catches syntactically valid PANs; non-standard separators (e.g. Unicode spaces, unusual delimiters) or intentional digit transposition can bypass regex. A WAF or tokenisation layer upstream is the right control for adversarial inputs at that level. |
+| CVV/EXPIRY detection requires keyword context | Bare 3-digit numbers appear in essentially all text; flagging without context would produce an unacceptable false-positive rate. The accepted residual is that a prompt that deliberately omits the keyword prefix (`cvv: 123` → `123`) will not be detected. |
+| LLM provider data handling | Redaction limits what the provider sees, but their data retention and training policies are outside our control. The token map means real PANs never leave the gateway, but redacted prompts may still be logged by the provider. |
+| Multi-turn conversation context | The token map is in-memory per request. A multi-turn setup where the client replays prior assistant messages containing restored PII would re-expose originals to the LLM on the next turn. The gateway is designed for stateless single-turn inference; callers are responsible for not echoing sensitive values back. |
+| Lambda cold-start latency spike | Secrets Manager fetches and (optionally) the HuggingFace NER model load on cold start, adding several hundred milliseconds to the first request after inactivity. Provisioned Concurrency eliminates this but was not provisioned by default to keep baseline cost low. |
+
+### Known limitations
+
+- **ML detection latency** — when the HuggingFace NER model is installed and loaded, each scan adds roughly 150–300 ms. The system falls back to regex-only if `transformers` is not installed; the latency tradeoff is the caller's choice.
+- **Regex-only for non-US formats** — the PHONE pattern matches US numbers only (`+1` prefix optional). International numbers are not detected. SSN matches the US 9-digit format; other national ID formats are out of scope.
+- **Agent streaming on Lambda** — `/v1/agent/stream` yields true SSE locally (uvicorn). Mangum buffers the full response on Lambda, so the client receives all events at once rather than incrementally. True streaming requires a persistent runtime (ECS, Lambda response streaming with a custom runtime).
+- **No prompt-injection detection** — the pipeline detects structured PII patterns; it does not detect adversarial instructions embedded in user input (e.g. "ignore previous instructions"). A separate input-classification step would be required to address this.
+
+---
 
 ## Compliance
 

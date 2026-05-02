@@ -62,6 +62,13 @@ Two new endpoints behind the existing auth middleware:
 
 **Tests** — 35 new tests in `tests/test_agent.py` covering tools, pipeline error paths, evaluator, subagents, orchestrator loop (including tool call + thinking), and HTTP endpoints. Overall coverage: 83%.
 
+**Design decisions in this release:**
+
+- **AST inspection for the calculator tool** — `eval()` on user-supplied expressions would let prompt injection execute arbitrary Python. The AST visitor whitelists numeric literals, arithmetic operators, and a small set of math functions, and rejects anything else before touching the interpreter. This makes the tool safe to expose through a tool-use loop where the model constructs expressions from user input.
+- **Haiku for subagents, Sonnet for the orchestrator** — specialist subagent tasks (PCI DSS lookup, audit log interpretation) are well-scoped and predictable; Haiku is fast and cost-effective for these. The orchestrator handles open-ended multi-step reasoning and tool selection — Sonnet (or Opus with extended thinking) is reserved for that higher-stakes coordination. Mixing models this way roughly halves inference cost per agent run compared to running everything on Sonnet.
+- **LLM-as-judge for evaluation** — a ground-truth dataset wasn't feasible for a domain-specific demo. A Haiku judge call gives a useful quality signal (citation accuracy, hallucination detection, relevance) with one inference call per run. The score surfaces obvious failures without requiring labelled data; the judge prompt explicitly instructs it to return a low score rather than guess when it cannot verify a claim.
+- **PII pipeline wrapping all agent I/O** — tool inputs, tool results, and the final response all pass through the same `PIIDetector → PolicyEngine → Redactor` pipeline used by the inference endpoint. This prevents a prompt injection in the user's question from causing the agent to exfiltrate card data through a DynamoDB query result or subagent response.
+
 ---
 
 ## [0.2.0] — 2026-05-01
@@ -107,11 +114,26 @@ Annual key rotation is enabled. Deletion window is 14 days.
 
 **API key secret** — `pci-llm-gateway/api-key` added to Secrets Manager, ARN passed to Lambda as `API_KEY_SECRET_ARN`
 
+**Design decisions in this release:**
+
+- **HMAC constant-time compare for the API key** — a naive string comparison leaks timing information about how many characters match, enabling a character-by-character brute-force with enough samples. `hmac.compare_digest` runs in constant time regardless of where the first mismatch occurs.
+- **`secret_resolver.py` naming** — originally named `secrets.py`; renamed to avoid shadowing Python's stdlib `secrets` module, which is imported internally for generating keys in test helpers and token issuance.
+- **CMK over AWS-managed keys** — AWS-managed keys are per-service and rotated on AWS's schedule; a CMK gives explicit control over key policy, rotation schedule, and the ability to disable or delete the key under incident response procedures — required by PCI DSS for environments processing cardholder data.
+
 ---
 
 ## [0.1.0] — 2026-04-29
 
 Initial release of the PCI LLM Gateway.
+
+**Design decisions:**
+
+- **Luhn validation on PANs** — pure regex would flag any 16-digit sequence (timestamps, product codes, phone numbers formatted without separators). Luhn reduces false positives to numbers that could plausibly be real card numbers, making the detector usable in practice without drowning operators in noise.
+- **Keyword context for CVV and EXPIRY** — 3–4 digit numbers appear in essentially all text; `cvv: 123` matches but bare `123` does not. The tradeoff is a false negative if an attacker deliberately omits the keyword prefix — accepted because flagging all date-like or short numeric patterns produces an unusable false-positive rate.
+- **Block vs. redact distinction** — PAN, CVV, SSN, and EXPIRY are rejected outright rather than redacted. Redaction is safe only when the original value is needed purely for context (email addresses, phone numbers). A PAN that survives to the LLM and is echoed back verbatim is still exposed to the provider — the only safe option is rejection at the gateway.
+- **Container image over Lambda zip** — the HuggingFace NER model, boto3, FastAPI, and their transitive dependencies exceed Lambda's 250 MB zip limit. Container images have no equivalent size limit at invocation time.
+- **`Finding` dataclass in `patterns.py` not `detector.py`** — both `detector.py` and `ml_model.py` return `Finding` objects; placing the dataclass in `detector.py` created a circular import when `ml_model.py` needed to import it. Moving it to the shared `patterns.py` module breaks the cycle without introducing a separate utility package.
+- **Flat-namespace service directories (no `__init__.py`)** — each service directory is added directly to `sys.path`. This keeps imports simple (`from detector import PIIDetector`) across a multi-service layout where the services will eventually run as separate Lambda functions with no shared package hierarchy.
 
 ---
 
