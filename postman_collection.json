@@ -1,0 +1,178 @@
+{
+  "info": {
+    "name": "PCI LLM Gateway",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "jwt_token", "value": "" },
+    { "key": "api_key", "value": "" },
+    { "key": "cognito_session", "value": "" },
+    { "key": "cognito_username", "value": "your@email.com" },
+    { "key": "cognito_password", "value": "YourPassword123!" }
+  ],
+  "item": [
+    {
+      "name": "Generate Token (dev only)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var res = pm.response.json();",
+              "if (res.access_token) {",
+              "  pm.collectionVariables.set('jwt_token', res.access_token);",
+              "  console.log('Dev token saved');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/dev/token",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sub\": \"dev-user\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Login via Cognito (prod)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var res = pm.response.json();",
+              "if (res.access_token) {",
+              "  pm.collectionVariables.set('jwt_token', res.access_token);",
+              "  console.log('Cognito token saved');",
+              "} else if (res.challenge === 'NEW_PASSWORD_REQUIRED') {",
+              "  pm.collectionVariables.set('cognito_session', res.session);",
+              "  console.log('NEW_PASSWORD_REQUIRED — run Change Password request next');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/auth/login",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-key", "value": "{{api_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{cognito_username}}\",\n  \"password\": \"{{cognito_password}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Change Password (first login)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var res = pm.response.json();",
+              "if (res.access_token) {",
+              "  pm.collectionVariables.set('jwt_token', res.access_token);",
+              "  console.log('Password changed — token saved');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/auth/change-password",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-key", "value": "{{api_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{cognito_username}}\",\n  \"new_password\": \"NewSecurePassword123!\",\n  \"session\": \"{{cognito_session}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/health"
+      }
+    },
+    {
+      "name": "List Models",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/v1/models",
+        "header": [{ "key": "x-api-key", "value": "{{api_key}}" }]
+      }
+    },
+    {
+      "name": "Inference - Safe Prompt",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/v1/inference",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-key", "value": "{{api_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prompt\": \"Explain what a neural network is in two sentences.\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
+        }
+      }
+    },
+    {
+      "name": "Inference - Email PII (redacted)",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/v1/inference",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-key", "value": "{{api_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prompt\": \"Draft a reply to john.doe@example.com about their account.\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
+        }
+      }
+    },
+    {
+      "name": "Inference - PAN (blocked)",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/v1/inference",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-key", "value": "{{api_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prompt\": \"Is card number 4111111111111111 valid?\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
+        }
+      }
+    },
+    {
+      "name": "Inference - No Auth (401)",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/v1/inference",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prompt\": \"Hello\",\n  \"max_tokens\": 64\n}"
+        }
+      }
+    }
+  ]
+}

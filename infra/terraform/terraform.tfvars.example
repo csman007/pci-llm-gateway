@@ -1,0 +1,5 @@
+aws_region        = "us-east-1"
+anthropic_api_key = "sk-ant-..."
+openai_api_key    = "sk-..."
+jwt_secret        = "generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+api_key           = "generate with: python -c \"import secrets; print(secrets.token_hex(32))\""

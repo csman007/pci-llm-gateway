@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+    "services/pii-detector",
+    "services/prompt-processor",
+    "services/llm-client",
+    "services/output-filter",
+    "services/api-gateway",
+    "services/agent",
+]
+[tool.coverage.run]
+omit = ["*/ml_model.py"]

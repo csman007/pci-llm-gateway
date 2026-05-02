@@ -1,0 +1,11 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./services:/app/services
+      - ./models.yaml:/app/models.yaml

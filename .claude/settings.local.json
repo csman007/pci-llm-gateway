@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pytest tests/test_auth_routes.py -v)",
+      "Bash(pip install *)",
+      "Bash(pytest tests/test_end_to_end.py -v)",
+      "Bash(pytest *)",
+      "Bash(tflint --version)",
+      "Bash(tfsec --version)",
+      "Bash(brew install *)",
+      "Bash(tflint --init)",
+      "Bash(tflint --format=compact)",
+      "Bash(tfsec . --format=lovely)",
+      "Bash(python -m pytest tests/test_end_to_end.py -q)",
+      "Bash(tfsec infra/terraform)",
+      "Bash(xargs ls *)",
+      "Bash(python *)",
+      "Bash(tflint --chdir=infra/terraform)"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+models:
+  - name: claude-sonnet-4-6
+    provider: claude
+  - name: claude-opus-4-7
+    provider: claude
+  - name: claude-haiku-4-5-20251001
+    provider: claude
+  - name: gpt-4o
+    provider: gpt
+  - name: gpt-4o-mini
+    provider: gpt

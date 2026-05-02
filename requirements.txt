@@ -1,0 +1,16 @@
+fastapi
+mangum
+pyyaml
+boto3
+python-dotenv
+uvicorn[standard]
+anthropic
+openai
+pyjwt
+python-jose[cryptography]
+tiktoken
+httpx
+locust
+pytest
+pytest-asyncio
+pytest-cov
