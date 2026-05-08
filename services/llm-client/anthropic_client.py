@@ -1,4 +1,3 @@
-import os
 import anthropic
 from fastapi import HTTPException
 from secret_resolver import resolve_env_secret

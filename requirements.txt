@@ -1,4 +1,7 @@
 fastapi
+pgvector
+psycopg2-binary
+pymupdf
 mangum
 pyyaml
 boto3
@@ -14,3 +17,4 @@ locust
 pytest
 pytest-asyncio
 pytest-cov
+ruff

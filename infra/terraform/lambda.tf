@@ -91,6 +91,19 @@ resource "aws_lambda_function" "gateway" {
       JUDGE_MODEL                  = var.judge_model
       JUDGE_MAX_TOKENS             = tostring(var.judge_max_tokens)
       AUDIT_LOG_TABLE              = var.audit_log_table
+      POSTGRES_DSN                 = "postgresql://gateway:${var.rds_password}@${aws_db_instance.pgvector.endpoint}/pci_gateway"
+      EMBEDDING_MODEL              = var.embedding_model
+      RAG_TOP_K                    = tostring(var.rag_top_k)
+      RAG_HYBRID                   = var.rag_hybrid
+      RAG_RRF_K                    = tostring(var.rag_rrf_k)
+      QUERY_ANALYZER_MODEL         = var.query_analyzer_model
+      QUERY_ANALYZER_MAX_TOKENS    = tostring(var.query_analyzer_max_tokens)
+      GROUNDING_STRICT             = var.grounding_strict
+      CONTEXT_MAX_CHUNK_CHARS      = tostring(var.context_max_chunk_chars)
+      RAG_MIN_SCORE                = var.rag_min_score
+      RAG_CONTEXT_BUDGET_CHARS     = tostring(var.rag_context_budget_chars)
+      GROUNDING_VALIDATE           = var.grounding_validate
+      GROUNDING_THRESHOLD          = var.grounding_threshold
     }
   }
 }

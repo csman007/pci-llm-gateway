@@ -1,5 +1,196 @@
 # Changelog
 
+## [0.5.0] — 2026-05-07
+
+### Linting & CI
+
+- Added `ruff` as the project linter (covers pyflakes F401, isort I001, pycodestyle E/W, pyupgrade UP; E501 ignored).
+- Removed all unused imports across the codebase (`ruff --fix`).
+- New GitHub Actions workflow `.github/workflows/lint.yml` runs `ruff check .` on every push and pull request.
+- `ruff` added to `requirements.txt`; configuration in `pyproject.toml` under `[tool.ruff.lint]`.
+
+### Test architecture — four-layer pytest structure
+
+The monolithic `tests/test_rag.py` was replaced with a proper layered test suite under `tests/rag/`:
+
+| Layer | File | Mark | Tests |
+|---|---|---|---|
+| Unit | `test_unit.py` | `@pytest.mark.unit` | Individual components — chunking, embedder, retriever helpers, pipeline helpers |
+| Integration | `test_integration.py` | `@pytest.mark.integration` | Multi-component workflows with selective mocking |
+| Contract | `test_contract.py` | `@pytest.mark.contract` | HTTP semantics, strict Pydantic response schema, auth guards |
+| Quality | `test_quality.py` | `@pytest.mark.quality` | Retrieval metrics (recall@k, precision@k), golden dataset, grounding validators |
+
+**Factories and fixtures (`tests/rag/conftest.py`):**
+
+- `make_chunk()`, `make_rag_result()`, `make_citation_result()`, `make_grounding()` — plain factory functions with meaningful defaults; exposed as fixtures via `chunk_factory`, `rag_result_factory`.
+- `make_token(exp_offset)` — generates signed HS256 JWTs; negative offset creates expired tokens for auth failure tests.
+- Shared fixtures: `app_client`, `auth_headers`, `postgres_env`, `mock_rag_pipeline`, `mock_llm_client`.
+
+**Strict response schema validation (`test_contract.py`):**
+
+Pydantic contract models (`model_config = ConfigDict(extra="forbid")`) mirror the API's declared response types and add business-logic invariants:
+- `chunks_retrieved` must equal `len(sources)` (cross-field model validator).
+- `answer` must not be blank.
+- All field names are exhaustive — extra fields in the response raise `ValidationError`.
+
+**Golden dataset quality tests (`test_quality.py`):**
+
+Five known PCI DSS queries with expected requirement IDs, tested for `recall@5 ≥ 0.5`. Metric helpers `recall_at_k` and `precision_at_k` are unit-tested independently.
+
+**New markers declared in `pyproject.toml`:** `unit`, `integration`, `contract`, `quality`. `asyncio_mode = "strict"` enforced.
+
+### RAG — hybrid retrieval with Reciprocal Rank Fusion
+
+`RAGRetriever` now combines two retrieval signals before returning results:
+
+| Signal | Implementation |
+|---|---|
+| Vector (semantic) | pgvector cosine similarity — unchanged |
+| BM25 (keyword) | PostgreSQL `ts_rank_cd + plainto_tsquery` full-text search on a GIN index |
+
+The two ranked lists are fused with **Reciprocal Rank Fusion** (k=60): `score[id] += 1/(k + rank + 1)` from each signal. A chunk appearing in both signals gets a double boost; vector-only or BM25-only chunks are still included. Each signal fetches `top_k × 2` candidates before fusion to give RRF enough candidates.
+
+Toggle: `RAG_HYBRID=true` (default) / `false` (pure vector).
+
+`VectorStore` additions: GIN FTS index in `_INIT_SQL`, new `full_text_search(query, top_k)` method, `id` field propagated through `similarity_search` results (required by RRF).
+
+### RAG — QueryAnalyzer (pre-retrieval intent classification)
+
+New class `QueryAnalyzer` (`services/rag/query_analyzer.py`): a single Haiku call before retrieval classifies the query into a list of PCI DSS requirement IDs (e.g., `["10.5.1", "3.4"]`). These hints are returned in the response as `requirement_hints` and optionally used to bias retrieval. Failures are silently suppressed — a failed classification never aborts a query.
+
+### RAG — ContextBuilder (structured LLM context formatting)
+
+New class `ContextBuilder` (`services/rag/context_builder.py`): replaces the flat context string with structured blocks:
+
+```
+[PCI DSS v4.0.1 — Requirement 10.5.1]
+Section: Requirement 10.5.1
+Relevance: 0.92
+
+<chunk text>
+
+══════════════════════════
+```
+
+Chunk text is truncated to `CONTEXT_MAX_CHUNK_CHARS` (default 2000) before insertion. Multiple chunks are separated by `═` dividers so the model can distinguish source boundaries.
+
+### RAG — GroundingValidator (3-layer deterministic grounding check)
+
+New class `GroundingValidator` (`services/rag/grounding_validator.py`) validates LLM answers without using an LLM:
+
+| Layer | Method | Cost |
+|---|---|---|
+| 1. Citation check | `validate_citations()` — regex extracts cited req IDs; verifies each appears in retrieved sources | Free |
+| 2. Claim extraction | `extract_claims()` — splits answer into sentences | Free |
+| 3. Semantic support | `GroundingValidator.validate_answer(semantic=True)` — one batched `embed_batch` call for all claims + chunks; cosine similarity per claim vs. all chunks | 1 API call |
+
+`validate_answer()` returns `is_grounded`, `score` (fraction of supported claims), `unsupported_claims`, and `citation_result`. The embedding call is skipped when `semantic=False`.
+
+Toggle: `GROUNDING_VALIDATE=true` / `false` (default). Runs via `asyncio.to_thread` to avoid blocking.
+
+### RAG — pipeline hardening
+
+`RAGPipeline` (`services/rag/rag_pipeline.py`) now runs six sequential stages:
+
+1. `QueryAnalyzer.classify()` — intent hints (non-fatal)
+2. `RAGRetriever.retrieve()` — hybrid RRF retrieval
+3. `_filter_chunks()` — score threshold (`RAG_MIN_SCORE`, default 0.0) + requirement_id deduplication (keep highest-score chunk per requirement)
+4. `_build_context()` — structured context with `RAG_CONTEXT_BUDGET_CHARS` (default 8000) character budget; always includes the top-ranked chunk even if it exceeds the budget
+5. `llm.complete()` — answer generation with explicit system prompt (`_RAG_SYSTEM`)
+6. `GroundingValidator.validate_answer()` — via `asyncio.to_thread` (when `GROUNDING_VALIDATE=true`)
+
+Empty-retrieval short-circuit: if `_filter_chunks` returns nothing, returns a canned "no relevant PCI DSS information found" answer without calling the LLM.
+
+**Response schema additions** (`schemas/rag_schemas.py`):
+
+| New field | Type | Description |
+|---|---|---|
+| `requirement_hints` | `list[str]` | Requirement IDs extracted by QueryAnalyzer |
+| `grounding` | `RAGGrounding \| None` | Full grounding report when `GROUNDING_VALIDATE=true` |
+| `grounding.is_grounded` | `bool` | Citations valid AND all claims semantically supported |
+| `grounding.score` | `float` | Fraction of claims with cosine similarity ≥ threshold |
+| `grounding.unsupported_claims` | `list[{claim, score}]` | Claims that fell below the similarity threshold |
+| `grounding.citation_result` | object | `valid`, `cited`, `retrieved`, `invalid_citations`, `missing_all_citations` |
+
+### Bug fix — `_sliding_chunks` infinite loop
+
+`scripts/ingest_pci_dss.py`: When the final segment of text was shorter than `_OVERLAP` (200 chars), `start = end - _OVERLAP` never advanced, causing an infinite loop. Fixed with `if end >= len(text): break` after appending each chunk.
+
+### New environment variables
+
+All new tuneable values are declared in `variables.tf` and wired into Lambda `environment.variables` in `lambda.tf`.
+
+| Env var | Default | Controls |
+|---|---|---|
+| `RAG_HYBRID` | `true` | Enable hybrid BM25 + vector retrieval |
+| `RAG_MIN_SCORE` | `0.0` | Minimum similarity score to keep a chunk |
+| `RAG_CONTEXT_BUDGET_CHARS` | `8000` | Max total characters of context passed to the LLM |
+| `CONTEXT_MAX_CHUNK_CHARS` | `2000` | Max characters from a single chunk in the context block |
+| `GROUNDING_VALIDATE` | `false` | Enable GroundingValidator after LLM answer generation |
+| `GROUNDING_THRESHOLD` | `0.82` | Cosine similarity floor for semantic claim support |
+| `QUERY_ANALYZER_MODEL` | `claude-haiku-4-5-20251001` | Model for pre-retrieval query classification |
+| `QUERY_ANALYZER_MAX_TOKENS` | `128` | Max tokens for QueryAnalyzer response |
+| `RAG_SYSTEM_PROMPT` | *(see code)* | System prompt prepended to every RAG LLM call |
+| `RRF_K` | `60` | RRF constant k (higher = smoother rank weighting) |
+
+---
+
+## [0.4.0] — 2026-05-06
+
+### RAG — PCI DSS v4.0.1 knowledge base (`services/rag/` + `scripts/ingest_pci_dss.py`)
+
+A retrieval-augmented generation layer grounded in the actual PCI DSS v4.0.1 standard text.
+
+**New endpoint — `POST /v1/rag/query`**
+
+| Field | Description |
+|---|---|
+| `question` | Natural language question about PCI DSS |
+| `model` | LLM to generate the answer (default: `claude-haiku-4-5-20251001`) |
+| `top_k` | Chunks to retrieve (1–20, default 5) |
+| `max_tokens` | Max tokens in the generated answer (default 1024) |
+
+Response includes `answer`, `sources` (requirement ID + section title + similarity score), and `chunks_retrieved`.
+
+**Ingestion script — `scripts/ingest_pci_dss.py`**
+
+Downloads or reads a local copy of the PCI DSS v4.0.1 PDF, chunks by requirement section (falls back to sliding window with 200-character overlap), generates OpenAI `text-embedding-3-small` embeddings in batches of 20, and inserts into pgvector. Run once before using the RAG endpoint:
+
+```bash
+python scripts/ingest_pci_dss.py \
+  --url https://www.middlebury.edu/sites/default/files/2025-01/PCI-DSS-v4_0_1.pdf
+```
+
+**New service — `services/rag/`**
+
+| Class | File | Responsibility |
+|---|---|---|
+| `EmbeddingClient` | `embedder.py` | OpenAI `text-embedding-3-small` embed / embed_batch |
+| `VectorStore` | `vector_store.py` | psycopg2 + pgvector — initialise, upsert, similarity search, clear |
+| `RAGRetriever` | `retriever.py` | Embed query → similarity search → format context block |
+| `RAGPipeline` | `rag_pipeline.py` | Retrieve context → build augmented prompt → call LLM |
+
+**Agent integration — compliance subagent and new `search_pci_dss` tool**
+
+- The `compliance` subagent now automatically retrieves relevant PCI DSS chunks before its Haiku call, grounding answers in the actual standard text. Falls back gracefully if `POSTGRES_DSN` is not set.
+- New orchestrator tool `search_pci_dss(query, top_k)` — lets the orchestrator retrieve raw PCI DSS sections directly without delegating to the subagent.
+- Orchestrator system prompt updated to instruct use of `search_pci_dss` before making compliance claims.
+
+**Infrastructure**
+
+- `docker-compose.yml`: `pgvector/pgvector:pg16` sidecar with a named volume; `gateway` service depends on it via `healthcheck`.
+- `infra/terraform/rds.tf`: RDS PostgreSQL 16 in the existing VPC private subnets — encrypted with CMK, `multi_az = true`, deletion protection, 7-day backups.
+- New env vars: `POSTGRES_DSN`, `EMBEDDING_MODEL` (default `text-embedding-3-small`), `RAG_TOP_K` (default 5). All declared in `variables.tf` and wired into Lambda `environment.variables`.
+
+**Design decisions:**
+
+- **OpenAI embeddings, not Anthropic** — Anthropic does not offer an embeddings API. `text-embedding-3-small` (1536 dimensions, $0.02/1M tokens) was chosen over `text-embedding-3-large` because the quality difference is marginal for domain-specific retrieval on a structured regulatory document.
+- **Chunking by requirement section, not fixed token count** — PCI DSS is a numbered requirements document. Keeping each requirement's text, testing procedures, and guidance together preserves the semantic unit that maps to a real question ("what does Req 10.5.1 require?"). Fixed-size chunks would routinely split across requirement boundaries.
+- **Graceful degradation when pgvector is unavailable** — `POSTGRES_DSN` being unset disables the RAG endpoint with a `503` and silently falls back to base-model responses in the compliance subagent. This means the existing inference and agent endpoints continue to work without any database dependency.
+- **IVFFlat index (lists=100)** — chosen over HNSW because the corpus fits in memory and IVFFlat has lower build time, which matters for a document that may need re-ingestion when a new PCI DSS version is released. HNSW is faster at query time and is the better choice above ~500K chunks.
+
+---
+
 ## [0.3.1] — 2026-05-02
 
 ### Agent layer tuning via environment variables

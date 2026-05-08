@@ -1,11 +1,12 @@
 import os
+from functools import cache
+
 import boto3
-from functools import lru_cache
 
 _client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION_NAME", "us-east-1"))
 
 
-@lru_cache(maxsize=None)
+@cache
 def get_secret(arn: str) -> str:
     return _client.get_secret_value(SecretId=arn)["SecretString"]
 

@@ -1,12 +1,14 @@
 import hmac
 import os
-import jwt
+
 import httpx
-from jose import jwt as jose_jwt, JWTError
+import jwt
+from jose import JWTError
+from jose import jwt as jose_jwt
+from secret_resolver import get_secret, resolve_env_secret
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from secret_resolver import get_secret, resolve_env_secret
 
 _IS_DEV = os.environ.get("ENV") == "dev"
 

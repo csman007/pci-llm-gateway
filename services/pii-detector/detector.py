@@ -1,5 +1,5 @@
-from patterns import ALL_PATTERNS, luhn_check, Finding
 from ml_model import PIIClassifier
+from patterns import ALL_PATTERNS, Finding, luhn_check
 
 
 class PIIDetector:

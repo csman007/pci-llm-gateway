@@ -5,8 +5,9 @@ Run with:
     locust -f scripts/load_test.py --host http://localhost:8000
 """
 import os
+
 import jwt
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
 
 JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret")
 _TOKEN = jwt.encode({"sub": "load-test-user"}, JWT_SECRET, algorithm="HS256")

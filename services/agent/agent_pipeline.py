@@ -1,9 +1,9 @@
-from fastapi import HTTPException
 from detector import PIIDetector
-from redactor import Redactor
-from policy_engine import PolicyEngine
-from validator import OutputValidator
+from fastapi import HTTPException
 from leakage_detector import LeakageDetector
+from policy_engine import PolicyEngine
+from redactor import Redactor
+from validator import OutputValidator
 
 
 class AgentPipeline:

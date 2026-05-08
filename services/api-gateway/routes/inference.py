@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException
-from schemas.request import InferenceRequest, InferenceResponse
 from detector import PIIDetector
-from redactor import Redactor
-from policy_engine import PolicyEngine
-from validator import OutputValidator
+from fastapi import APIRouter, HTTPException
 from leakage_detector import LeakageDetector
 from model_registry import MODEL_NAMES, get_client
+from policy_engine import PolicyEngine
+from redactor import Redactor
+from schemas.request import InferenceRequest, InferenceResponse
+from validator import OutputValidator
 
 router = APIRouter()
 

@@ -83,3 +83,95 @@ variable "audit_log_table" {
   type        = string
   default     = "pci-llm-gateway-audit"
 }
+
+# ── RAG / pgvector ─────────────────────────────────────────────────────────
+
+variable "rds_instance_class" {
+  description = "RDS instance class for the pgvector database"
+  type        = string
+  default     = "db.t3.medium"
+}
+
+variable "rds_allocated_storage" {
+  description = "RDS allocated storage in GB"
+  type        = number
+  default     = 20
+}
+
+variable "rds_password" {
+  description = "Master password for the pgvector RDS instance"
+  type        = string
+  sensitive   = true
+}
+
+variable "embedding_model" {
+  description = "OpenAI embedding model used for RAG"
+  type        = string
+  default     = "text-embedding-3-small"
+}
+
+variable "rag_top_k" {
+  description = "Number of PCI DSS chunks retrieved per query"
+  type        = number
+  default     = 5
+}
+
+variable "rag_hybrid" {
+  description = "Enable hybrid vector + BM25 retrieval with RRF fusion"
+  type        = string
+  default     = "true"
+}
+
+variable "rag_rrf_k" {
+  description = "RRF constant k — higher values reduce the weight of top ranks"
+  type        = number
+  default     = 60
+}
+
+variable "query_analyzer_model" {
+  description = "Model used for query intent classification"
+  type        = string
+  default     = "claude-haiku-4-5-20251001"
+}
+
+variable "query_analyzer_max_tokens" {
+  description = "Max tokens for the query intent classification call"
+  type        = number
+  default     = 256
+}
+
+variable "grounding_strict" {
+  description = "Append a warning to answers that cite unverified requirement IDs"
+  type        = string
+  default     = "false"
+}
+
+variable "context_max_chunk_chars" {
+  description = "Maximum characters per chunk in structured context output"
+  type        = number
+  default     = 2000
+}
+
+variable "rag_min_score" {
+  description = "Minimum retrieval score; chunks below this are discarded before context building"
+  type        = string
+  default     = "0.0"
+}
+
+variable "rag_context_budget_chars" {
+  description = "Maximum total characters across all chunks included in the context prompt"
+  type        = number
+  default     = 8000
+}
+
+variable "grounding_validate" {
+  description = "Enable batched embedding-based semantic claim support validation"
+  type        = string
+  default     = "false"
+}
+
+variable "grounding_threshold" {
+  description = "Minimum cosine similarity for a claim to be considered grounded"
+  type        = string
+  default     = "0.82"
+}
