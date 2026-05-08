@@ -25,6 +25,7 @@ _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
 # ── Pure helpers ───────────────────────────────────────────────────────────────
 
+
 def validate_citations(answer: str, sources: list[dict]) -> dict:
     """Check that every requirement ID cited in *answer* appears in *sources*.
 
@@ -41,9 +42,7 @@ def validate_citations(answer: str, sources: list[dict]) -> dict:
             missing_all_citations — True when the answer contains no citations at all
     """
     cited = list(dict.fromkeys(_CITATION_RE.findall(answer)))
-    retrieved = list(dict.fromkeys(
-        s["requirement_id"] for s in sources if s.get("requirement_id")
-    ))
+    retrieved = list(dict.fromkeys(s["requirement_id"] for s in sources if s.get("requirement_id")))
     retrieved_set = set(retrieved)
     invalid = [r for r in cited if r not in retrieved_set]
     return {
@@ -76,6 +75,7 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 
 # ── Validator class ────────────────────────────────────────────────────────────
+
 
 class GroundingValidator:
     """Validates LLM answer grounding against retrieved PCI DSS chunks.

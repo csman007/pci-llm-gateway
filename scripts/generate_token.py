@@ -1,4 +1,5 @@
 """Generate a JWT for local testing. Never use in production."""
+
 import os
 import sys
 

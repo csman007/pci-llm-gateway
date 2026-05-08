@@ -50,9 +50,9 @@ _SECTION_HEADERS = re.compile(
     re.IGNORECASE,
 )
 
-_CHUNK_SIZE = 1_500   # target characters per chunk
-_OVERLAP = 200        # overlap between sliding-window sub-chunks
-_BATCH_SIZE = 20      # embeddings per API call
+_CHUNK_SIZE = 1_500  # target characters per chunk
+_OVERLAP = 200  # overlap between sliding-window sub-chunks
+_BATCH_SIZE = 20  # embeddings per API call
 
 
 def _sliding_chunks(text: str) -> list[str]:
@@ -75,6 +75,7 @@ def _sliding_chunks(text: str) -> list[str]:
 def extract_text(pdf_path: str) -> str:
     """Extract all text from the PDF in reading order."""
     import fitz  # pymupdf — imported here to keep module import-safe for unit tests
+
     doc = fitz.open(pdf_path)
     pages = []
     for page in doc:
@@ -99,36 +100,44 @@ def chunk_document(text: str) -> list[dict]:
             section_text = text[start:end].strip()
 
             if len(section_text) <= _CHUNK_SIZE * 2:
-                chunks.append({
-                    "requirement_id": req_id,
-                    "section_title": f"Requirement {req_id}",
-                    "chunk_text": section_text,
-                })
-            else:
-                for sub in _sliding_chunks(section_text):
-                    chunks.append({
+                chunks.append(
+                    {
                         "requirement_id": req_id,
                         "section_title": f"Requirement {req_id}",
-                        "chunk_text": sub,
-                    })
+                        "chunk_text": section_text,
+                    }
+                )
+            else:
+                for sub in _sliding_chunks(section_text):
+                    chunks.append(
+                        {
+                            "requirement_id": req_id,
+                            "section_title": f"Requirement {req_id}",
+                            "chunk_text": sub,
+                        }
+                    )
     else:
         print(f"  Warning: only {len(matches)} requirement markers found — using sliding window.")
         for sub in _sliding_chunks(text):
             req_match = _REQ_PATTERN.search(sub)
-            chunks.append({
-                "requirement_id": req_match.group(1) if req_match else None,
-                "section_title": None,
-                "chunk_text": sub,
-            })
+            chunks.append(
+                {
+                    "requirement_id": req_match.group(1) if req_match else None,
+                    "section_title": None,
+                    "chunk_text": sub,
+                }
+            )
 
     return chunks
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def download_pdf(url: str, dest: str) -> None:
     """Download *url* to *dest* with a progress indicator."""
     import httpx  # imported here to keep module import-safe for unit tests
+
     print(f"  Downloading {url}")
     with httpx.stream("GET", url, follow_redirects=True, timeout=120) as r:
         r.raise_for_status()
@@ -150,6 +159,7 @@ def _batched(lst: list, n: int):
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest PCI DSS v4.0.1 into pgvector")
@@ -190,6 +200,7 @@ def main() -> None:
     # ── 3. Initialise store ───────────────────────────────────────────────────
     from embedder import EmbeddingClient  # noqa: E402
     from vector_store import VectorStore  # noqa: E402
+
     store = VectorStore(dsn=dsn)
     print("Initialising pgvector table...")
     store.initialise()

@@ -10,7 +10,7 @@ _REQ_ID_RE = re.compile(r"^\d+\.\d+(?:\.\d+)*$")
 _SYSTEM = (
     "You are a PCI DSS v4.0.1 expert. "
     "Given a user question, identify which PCI DSS requirement numbers it most likely relates to. "
-    "Respond with a JSON array of requirement ID strings only, e.g. [\"10.5.1\", \"3.4.1\"]. "
+    'Respond with a JSON array of requirement ID strings only, e.g. ["10.5.1", "3.4.1"]. '
     "If no specific requirements apply, return []. "
     "Output ONLY the JSON array — no explanation, no markdown."
 )

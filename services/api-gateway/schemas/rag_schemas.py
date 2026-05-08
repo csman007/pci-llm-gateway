@@ -17,11 +17,11 @@ class RAGSource(BaseModel):
 class RAGCitationResult(BaseModel):
     """Output of the citation validation stage."""
 
-    valid: bool                   # at least one citation exists and none are invalid
-    cited: list[str]              # requirement IDs cited in the answer
-    retrieved: list[str]          # requirement IDs present in retrieved chunks
+    valid: bool  # at least one citation exists and none are invalid
+    cited: list[str]  # requirement IDs cited in the answer
+    retrieved: list[str]  # requirement IDs present in retrieved chunks
     invalid_citations: list[str]  # cited IDs not backed by any retrieved chunk
-    missing_all_citations: bool   # True when the answer contains no citations
+    missing_all_citations: bool  # True when the answer contains no citations
 
 
 class RAGUnsupportedClaim(BaseModel):
@@ -34,8 +34,8 @@ class RAGUnsupportedClaim(BaseModel):
 class RAGGrounding(BaseModel):
     """Layered grounding validation report from GroundingValidator."""
 
-    is_grounded: bool                       # citations valid AND all claims supported
-    score: float                            # fraction of semantically supported claims
+    is_grounded: bool  # citations valid AND all claims supported
+    score: float  # fraction of semantically supported claims
     unsupported_claims: list[RAGUnsupportedClaim]
     citation_result: RAGCitationResult
 

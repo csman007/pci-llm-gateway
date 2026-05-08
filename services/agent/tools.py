@@ -130,6 +130,7 @@ def query_audit_log(limit: int = 20, user_id: str | None = None) -> str:
         kwargs: dict = {"Limit": limit}
         if user_id:
             from boto3.dynamodb.conditions import Attr
+
             kwargs["FilterExpression"] = Attr("user_id").eq(user_id)
         result = table.scan(**kwargs)
         return json.dumps(result.get("Items", []), default=str)
@@ -160,9 +161,7 @@ def analyze_pii_risk(text: str) -> str:
 
     report = {
         "entity_count": len(findings),
-        "entities": [
-            {"type": f.entity_type, "confidence": f.confidence} for f in findings
-        ],
+        "entities": [{"type": f.entity_type, "confidence": f.confidence} for f in findings],
         "risk_level": risk_level,
     }
     return json.dumps(report)
@@ -171,9 +170,18 @@ def analyze_pii_risk(text: str) -> str:
 # Allowlist of AST node types permitted in calculator expressions.
 _SAFE_NODES = (
     ast.Expression,
-    ast.BinOp, ast.UnaryOp, ast.Constant,
-    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
-    ast.USub, ast.UAdd,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.Constant,
+    ast.Add,
+    ast.Sub,
+    ast.Mult,
+    ast.Div,
+    ast.FloorDiv,
+    ast.Mod,
+    ast.Pow,
+    ast.USub,
+    ast.UAdd,
 )
 
 
@@ -216,10 +224,12 @@ async def _search_pci_dss(query: str, top_k: int = 5) -> str:
         Formatted context string, or an ERROR: prefixed string if unavailable.
     """
     import os
+
     if not os.environ.get("POSTGRES_DSN"):
         return "ERROR: PCI DSS search is not available — POSTGRES_DSN is not configured."
     try:
         from retriever import RAGRetriever
+
         retriever = RAGRetriever()
         chunks = await retriever.retrieve(query, min(max(top_k, 1), 10))
         return RAGRetriever.format_context(chunks)

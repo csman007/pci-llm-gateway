@@ -57,14 +57,12 @@ class SubagentRunner:
         if agent_name == "compliance" and os.environ.get("POSTGRES_DSN"):
             try:
                 from retriever import RAGRetriever
+
                 retriever = RAGRetriever()
                 chunks = await retriever.retrieve(redacted_q)
                 if chunks:
                     context = RAGRetriever.format_context(chunks)
-                    user_content = (
-                        f"Relevant PCI DSS v4.0.1 sections:\n\n{context}"
-                        f"\n\n---\n\nQuestion: {redacted_q}"
-                    )
+                    user_content = f"Relevant PCI DSS v4.0.1 sections:\n\n{context}\n\n---\n\nQuestion: {redacted_q}"
             except Exception as exc:
                 log.warning("RAG retrieval failed, falling back to base model: %s", exc)
 

@@ -31,7 +31,23 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(pip show *)",
       "Bash(ruff check *)",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "Bash(ruff format *)",
+      "Bash(chmod +x /Users/csbdeak/dev/pci-llm-gateway/.git/hooks/pre-commit)",
+      "Bash(bash *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/csbdeak/dev/pci-llm-gateway && ruff check --fix services/ scripts/ 2>&1; ruff format services/ scripts/ --quiet 2>&1"
+          }
+        ]
+      }
     ]
   }
 }

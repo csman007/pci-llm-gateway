@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
+
 def _client_id() -> str | None:
     return os.environ.get("COGNITO_CLIENT_ID")
 

@@ -32,11 +32,6 @@ class ContextBuilder:
             score = round(chunk.get("score", 0.0), 3)
             text = (chunk.get("chunk_text") or "").strip()[:_MAX_CHUNK_CHARS]
 
-            parts.append(
-                f"[PCI DSS v4.0.1 — Requirement {req}]\n"
-                f"Section:   {title}\n"
-                f"Relevance: {score}\n\n"
-                f"{text}"
-            )
+            parts.append(f"[PCI DSS v4.0.1 — Requirement {req}]\nSection:   {title}\nRelevance: {score}\n\n{text}")
 
         return _SEPARATOR.join(parts)

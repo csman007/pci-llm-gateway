@@ -19,13 +19,15 @@ class PIIDetector:
                 raw = match.group()
                 if entity_type == "PAN" and not luhn_check(raw):
                     continue
-                results.append(Finding(
-                    entity_type=entity_type,
-                    start=match.start(),
-                    end=match.end(),
-                    text=raw,
-                    confidence=0.95,
-                ))
+                results.append(
+                    Finding(
+                        entity_type=entity_type,
+                        start=match.start(),
+                        end=match.end(),
+                        text=raw,
+                        confidence=0.95,
+                    )
+                )
         return results
 
     def _deduplicate(self, findings: list[Finding]) -> list[Finding]:

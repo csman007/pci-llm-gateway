@@ -5,9 +5,7 @@ import psycopg2
 from pgvector.psycopg2 import register_vector
 from psycopg2.extras import execute_values
 
-_POSTGRES_DSN = os.environ.get(
-    "POSTGRES_DSN", "postgresql://gateway:gateway@localhost:5432/pci_gateway"
-)
+_POSTGRES_DSN = os.environ.get("POSTGRES_DSN", "postgresql://gateway:gateway@localhost:5432/pci_gateway")
 
 _INIT_SQL = """
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -91,9 +89,7 @@ class VectorStore:
                 )
                 return cur.rowcount
 
-    def similarity_search(
-        self, query_embedding: list[float], top_k: int = 5
-    ) -> list[dict]:
+    def similarity_search(self, query_embedding: list[float], top_k: int = 5) -> list[dict]:
         """Return the top_k chunks nearest to *query_embedding* by cosine similarity.
 
         Args:

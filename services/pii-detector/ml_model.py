@@ -5,6 +5,7 @@ from patterns import Finding
 # Lazy import so the gateway starts without heavy ML deps if the model is unused.
 try:
     from transformers import pipeline
+
     _HF_AVAILABLE = True
 except ImportError:
     _HF_AVAILABLE = False

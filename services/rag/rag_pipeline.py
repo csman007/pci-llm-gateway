@@ -115,9 +115,7 @@ class RAGPipeline:
 
         # Stage 5 — grounded answer.  System prompt is passed explicitly so
         # the model receives the compliance instruction as a first-class message.
-        answer = await self._llm.complete(
-            prompt=prompt, model=model, max_tokens=max_tokens, system=_RAG_SYSTEM
-        )
+        answer = await self._llm.complete(prompt=prompt, model=model, max_tokens=max_tokens, system=_RAG_SYSTEM)
 
         # Stage 6 — grounding validation.
         sources = [
@@ -131,7 +129,9 @@ class RAGPipeline:
         validator = GroundingValidator(threshold=_GROUNDING_THRESHOLD)
         grounding = await asyncio.to_thread(
             validator.validate_answer,
-            answer, chunks, sources,
+            answer,
+            chunks,
+            sources,
             semantic=_GROUNDING_VALIDATE,
         )
 
@@ -150,6 +150,7 @@ class RAGPipeline:
 
 
 # ── Pipeline helpers ───────────────────────────────────────────────────────────
+
 
 def _filter_chunks(chunks: list[dict], min_score: float) -> list[dict]:
     """Apply score threshold and deduplicate by requirement_id.
@@ -203,7 +204,7 @@ def _build_context(chunks: list[dict], builder: ContextBuilder, budget: int) -> 
 def _empty_grounding() -> dict:
     """Grounding report for queries that returned no retrievable chunks."""
     return {
-        "is_grounded": True,   # no claims made → no ungrounded claims
+        "is_grounded": True,  # no claims made → no ungrounded claims
         "score": 1.0,
         "unsupported_claims": [],
         "citation_result": {
