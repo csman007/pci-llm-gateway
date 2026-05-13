@@ -2,12 +2,12 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
-
 from middleware.auth import AuthMiddleware
 from middleware.logging import LoggingMiddleware
 from routes.agent import router as agent_router
 from routes.auth import router as auth_router
 from routes.inference import router as inference_router
+from routes.rag import router as rag_router
 from routes.token import router as token_router
 
 load_dotenv()
@@ -20,6 +20,7 @@ app.add_middleware(AuthMiddleware)
 app.include_router(auth_router, prefix="/auth")
 app.include_router(inference_router, prefix="/v1")
 app.include_router(agent_router, prefix="/v1")
+app.include_router(rag_router, prefix="/v1")
 app.include_router(token_router, prefix="/dev")
 
 

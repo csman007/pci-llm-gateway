@@ -1,0 +1,23 @@
+coverage:
+  precision: 0        # whole-number percentages in badges and comments
+  round: down         # round down so 79.9% never shows as 80%
+
+  status:
+    project:
+      default:
+        target: 80%           # fail if overall coverage drops below 80%
+        threshold: 2%         # allow up to 2% drop before reporting a failure
+    patch:
+      default:
+        target: 75%           # new/changed lines in a PR must be ≥75% covered
+        threshold: 5%
+
+ignore:
+  - "tests/**"
+  - "scripts/**"
+  - "infra/**"
+
+comment:
+  layout: "header,reach,diff,files"
+  behavior: default         # post once, update on new commits
+  require_changes: true     # stay quiet on PRs that don't affect coverage

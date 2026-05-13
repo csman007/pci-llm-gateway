@@ -1,6 +1,8 @@
 """Generate a JWT for local testing. Never use in production."""
+
 import os
 import sys
+
 import jwt
 from dotenv import load_dotenv
 

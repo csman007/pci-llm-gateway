@@ -4,9 +4,11 @@ Locust load test for the PCI LLM Gateway.
 Run with:
     locust -f scripts/load_test.py --host http://localhost:8000
 """
+
 import os
+
 import jwt
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
 
 JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret")
 _TOKEN = jwt.encode({"sub": "load-test-user"}, JWT_SECRET, algorithm="HS256")
@@ -27,6 +29,7 @@ class GatewayUser(HttpUser):
     @task(10)
     def inference_safe(self):
         import random
+
         self.client.post(
             "/v1/inference",
             json={"prompt": random.choice(SAFE_PROMPTS), "max_tokens": 256},

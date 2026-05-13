@@ -1,12 +1,39 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "strict"
 pythonpath = [
+    ".",
     "services/pii-detector",
     "services/prompt-processor",
     "services/llm-client",
     "services/output-filter",
     "services/api-gateway",
     "services/agent",
+    "services/rag",
+    "scripts",
+]
+markers = [
+    "unit: isolated single-component tests (fast, no I/O)",
+    "integration: multi-component tests that mock only external I/O",
+    "contract: API endpoint contract and schema validation tests",
+    "quality: retrieval quality metrics — recall@k, precision@k, grounding",
 ]
 [tool.coverage.run]
 omit = ["*/ml_model.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (includes F401 unused imports)
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+ignore = ["E501"]  # line-length enforced by formatter, not linter
+
+[tool.ruff.lint.isort]
+known-first-party = ["services"]

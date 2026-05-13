@@ -10,6 +10,7 @@ class Finding:
     text: str
     confidence: float
 
+
 # PAN: 13-19 digit sequences passing Luhn check
 PAN_PATTERN = re.compile(r"\b(?:\d[ -]?){13,19}\b")
 
@@ -23,9 +24,7 @@ EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\
 PHONE_PATTERN = re.compile(r"\b(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
 
 # CVV (3-4 digits near card-related keywords)
-CVV_CONTEXT_PATTERN = re.compile(
-    r"(?:cvv|cvc|security\s+code)[:\s]*(\d{3,4})", re.IGNORECASE
-)
+CVV_CONTEXT_PATTERN = re.compile(r"(?:cvv|cvc|security\s+code)[:\s]*(\d{3,4})", re.IGNORECASE)
 
 # Expiry: keyword context + MM/YY or MM/YYYY, month must be 01-12
 EXPIRY_PATTERN = re.compile(
@@ -47,8 +46,5 @@ ALL_PATTERNS = {
 def luhn_check(number: str) -> bool:
     digits = [int(d) for d in number if d.isdigit()]
     digits.reverse()
-    total = sum(
-        d if i % 2 == 0 else (d * 2 - 9 if d * 2 > 9 else d * 2)
-        for i, d in enumerate(digits)
-    )
+    total = sum(d if i % 2 == 0 else (d * 2 - 9 if d * 2 > 9 else d * 2) for i, d in enumerate(digits))
     return total % 10 == 0

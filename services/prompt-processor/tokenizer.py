@@ -18,7 +18,4 @@ class PromptTokenizer:
 
     def chunk(self, text: str, chunk_size: int) -> list[str]:
         tokens = self._enc.encode(text)
-        return [
-            self._enc.decode(tokens[i : i + chunk_size])
-            for i in range(0, len(tokens), chunk_size)
-        ]
+        return [self._enc.decode(tokens[i : i + chunk_size]) for i in range(0, len(tokens), chunk_size)]

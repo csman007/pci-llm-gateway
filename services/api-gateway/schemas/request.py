@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, field_validator
 from model_registry import MODEL_NAMES
+from pydantic import BaseModel, Field, field_validator
 
 
 class InferenceRequest(BaseModel):

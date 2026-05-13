@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-from typing import AsyncIterator
-
 import os
-import anthropic
-from fastapi import HTTPException
+from collections.abc import AsyncIterator
 
+import anthropic
 from agent_pipeline import AgentPipeline
 from evaluator import LLMJudge
+from fastapi import HTTPException
 from prompts import ORCHESTRATOR_SYSTEM
 from subagents import SubagentRunner
 from tools import TOOL_DEFINITIONS, execute_tool
@@ -49,9 +48,7 @@ class AgentOrchestrator:
         self._subagent_runner = subagent_runner
         self._judge = judge
 
-    async def run(
-        self, question: str, use_thinking: bool = False, max_tokens: int = 4096
-    ) -> dict:
+    async def run(self, question: str, use_thinking: bool = False, max_tokens: int = 4096) -> dict:
         """Run the agent to completion and return a structured result.
 
         Args:
@@ -76,17 +73,13 @@ class AgentOrchestrator:
         kwargs = self._build_kwargs(model, max_tokens, use_thinking)
 
         for step in range(_MAX_STEPS):
-            response = await self._client.messages.create(
-                messages=messages, **kwargs
-            )
+            response = await self._client.messages.create(messages=messages, **kwargs)
 
             self._collect_thinking(response.content, thinking_blocks)
 
             if response.stop_reason == "end_turn":
                 final_text = self._extract_text(response.content)
-                restored = self._pipeline.validate_and_restore(
-                    final_text, outer_token_map
-                )
+                restored = self._pipeline.validate_and_restore(final_text, outer_token_map)
                 evaluation = await self._judge.score(question, restored)
                 return {
                     "response": restored,
@@ -97,9 +90,7 @@ class AgentOrchestrator:
                 }
 
             if response.stop_reason == "tool_use":
-                tool_results = await self._execute_tool_uses(
-                    response.content, tool_trace
-                )
+                tool_results = await self._execute_tool_uses(response.content, tool_trace)
                 messages.append({"role": "assistant", "content": response.content})
                 messages.append({"role": "user", "content": tool_results})
                 continue
@@ -110,17 +101,12 @@ class AgentOrchestrator:
         messages.append(
             {
                 "role": "user",
-                "content": (
-                    "You have used the maximum number of tool calls. "
-                    "Please summarise your findings so far."
-                ),
+                "content": ("You have used the maximum number of tool calls. Please summarise your findings so far."),
             }
         )
         final_kwargs = {**kwargs}
         final_kwargs.pop("tools", None)
-        response = await self._client.messages.create(
-            messages=messages, **final_kwargs
-        )
+        response = await self._client.messages.create(messages=messages, **final_kwargs)
         final_text = self._extract_text(response.content)
         restored = self._pipeline.validate_and_restore(final_text, outer_token_map)
         evaluation = await self._judge.score(question, restored)
@@ -132,9 +118,7 @@ class AgentOrchestrator:
             "steps_taken": _MAX_STEPS,
         }
 
-    async def stream(
-        self, question: str, use_thinking: bool = False, max_tokens: int = 4096
-    ) -> AsyncIterator[dict]:
+    async def stream(self, question: str, use_thinking: bool = False, max_tokens: int = 4096) -> AsyncIterator[dict]:
         """Stream the agent's work as SSE-ready dicts.
 
         Yields events of types: thinking, tool_call, tool_result, text_delta,
@@ -165,9 +149,7 @@ class AgentOrchestrator:
             content_blocks: list = []
             stop_reason = "end_turn"
 
-            async with self._client.messages.stream(
-                messages=messages, **kwargs
-            ) as stream:
+            async with self._client.messages.stream(messages=messages, **kwargs) as stream:
                 async for event in stream:
                     event_type = type(event).__name__
 
@@ -178,9 +160,7 @@ class AgentOrchestrator:
                         elif block.type == "text":
                             content_blocks.append({"type": "text", "text": ""})
                         elif block.type == "tool_use":
-                            content_blocks.append(
-                                {"type": "tool_use", "id": block.id, "name": block.name, "input": {}}
-                            )
+                            content_blocks.append({"type": "tool_use", "id": block.id, "name": block.name, "input": {}})
                             current_tool_inputs[block.id] = {"name": block.name, "input_str": ""}
 
                     elif event_type == "RawContentBlockDeltaEvent":
@@ -204,9 +184,7 @@ class AgentOrchestrator:
                 if block["type"] == "tool_use":
                     tid = block["id"]
                     try:
-                        block["input"] = json.loads(
-                            current_tool_inputs[tid]["input_str"] or "{}"
-                        )
+                        block["input"] = json.loads(current_tool_inputs[tid]["input_str"] or "{}")
                     except json.JSONDecodeError:
                         block["input"] = {}
 
@@ -249,9 +227,7 @@ class AgentOrchestrator:
                 messages.append({"role": "user", "content": tool_results})
 
         # Extract and restore the final text.
-        final_text = "".join(
-            b.get("text", "") for b in accumulated_response if b["type"] == "text"
-        )
+        final_text = "".join(b.get("text", "") for b in accumulated_response if b["type"] == "text")
         try:
             restored = self._pipeline.validate_and_restore(final_text, outer_token_map)
         except HTTPException as exc:
@@ -306,9 +282,7 @@ class AgentOrchestrator:
         Returns:
             Concatenated text string, empty string if no text blocks present.
         """
-        return "".join(
-            block.text for block in content if hasattr(block, "type") and block.type == "text"
-        )
+        return "".join(block.text for block in content if hasattr(block, "type") and block.type == "text")
 
     async def _execute_tool_uses(self, content: list, trace: list) -> list[dict]:
         """Execute all tool_use blocks in *content* and return tool_result messages.

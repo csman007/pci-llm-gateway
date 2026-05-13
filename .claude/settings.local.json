@@ -18,7 +18,36 @@
       "Bash(tflint --chdir=infra/terraform)",
       "Bash(python3 -m pytest --cov=services --cov-report=term-missing -q)",
       "Bash(pyenv versions *)",
-      "Read(//Users/csbdeak/.pyenv/versions/**)"
+      "Read(//Users/csbdeak/.pyenv/versions/**)",
+      "Bash(git check-ignore *)",
+      "Bash(git rm *)",
+      "Bash(grep -i \"cost\\\\|price\\\\|dollar\\\\|\\\\$\\\\|usd\\\\|month\\\\|per\\\\|0\\\\.\\\\|lambda\\\\|dynamo\\\\|firehose\\\\|secrets\\\\|cognito\\\\|ecr\\\\|kms\" /Users/csbdeak/dev/pci-llm-gateway/architecture/aws_architecture.drawio)",
+      "Bash(grep -v \"^$\\\\|^<\\\\|PAGE\\\\|LEFT\\\\|RIGHT\\\\|CHART\\\\|Row\\\\|PCI\\\\|Estimate\\\\|us-east\")",
+      "Bash(grep -E \"^\\\\$|^~|^<|^per|Cognito|DynamoDB|Secrets|ECR|CloudWatch|Firehose|Lambda|Gateway|KMS|PrivateLink|Haiku|Sonnet|Opus|token|request|GB|key|AZ|month|Total|TOTAL\")",
+      "Bash(.venv/bin/pytest *)",
+      "Bash(wait)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/python *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(pip show *)",
+      "Bash(ruff check *)",
+      "Bash(xargs cat)",
+      "Bash(ruff format *)",
+      "Bash(chmod +x /Users/csbdeak/dev/pci-llm-gateway/.git/hooks/pre-commit)",
+      "Bash(bash *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/csbdeak/dev/pci-llm-gateway && ruff check --fix services/ scripts/ 2>&1; ruff format services/ scripts/ --quiet 2>&1"
+          }
+        ]
+      }
     ]
   }
 }

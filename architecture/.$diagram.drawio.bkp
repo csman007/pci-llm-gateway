@@ -1,0 +1,262 @@
+<mxfile host="app.diagrams.net" version="21.0.0">
+  <diagram name="PCI LLM Gateway Architecture" id="pci-llm-gateway-arch">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1080" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ── Client ─────────────────────────────────────────────── -->
+        <mxCell id="2" value="&lt;b&gt;Client&lt;/b&gt;" style="shape=mxgraph.aws4.user;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ── Amazon Cognito ─────────────────────────────────────── -->
+        <mxCell id="3" value="&lt;b&gt;Amazon Cognito&lt;/b&gt;&lt;br&gt;User Pool" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="210" y="120" width="150" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ── API Gateway ─────────────────────────────────────────── -->
+        <mxCell id="4" value="&lt;b&gt;Amazon API Gateway&lt;/b&gt;&lt;br&gt;HTTP API + JWT Authorizer&lt;br&gt;&lt;i&gt;x-api-key required&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontStyle=0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="210" y="280" width="170" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ── VPC container ──────────────────────────────────────── -->
+        <mxCell id="5" value="&lt;b&gt;VPC&lt;/b&gt; — Private Subnets (min 2 AZs) — No Public Ingress · HTTPS-only Egress" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontStyle=1;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="80" width="1150" height="780" as="geometry" />
+        </mxCell>
+
+        <!-- ── Lambda container ───────────────────────────────────── -->
+        <mxCell id="6" value="&lt;b&gt;AWS Lambda&lt;/b&gt; — FastAPI + Mangum — Container Image from ECR — Auth Routes + PII Pipeline + RAG Pipeline" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#333333;fontStyle=1;fontSize=11;" vertex="1" parent="5">
+          <mxGeometry x="20" y="50" width="1110" height="340" as="geometry" />
+        </mxCell>
+
+        <!-- ── Inference pipeline steps inside Lambda ─────────────── -->
+        <mxCell id="7" value="&lt;b&gt;Auth&lt;/b&gt;&lt;br&gt;Middleware" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="6">
+          <mxGeometry x="20" y="80" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="8" value="&lt;b&gt;PII&lt;/b&gt;&lt;br&gt;Detector" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="6">
+          <mxGeometry x="155" y="80" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="9" value="&lt;b&gt;Policy&lt;/b&gt;&lt;br&gt;Engine" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="6">
+          <mxGeometry x="290" y="80" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="10" value="&lt;b&gt;Redactor&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="6">
+          <mxGeometry x="425" y="80" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="11" value="&lt;b&gt;LLM&lt;/b&gt;&lt;br&gt;Client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="6">
+          <mxGeometry x="560" y="80" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="12" value="&lt;b&gt;Output&lt;/b&gt;&lt;br&gt;Filter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="6">
+          <mxGeometry x="695" y="80" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="13" value="&lt;b&gt;Restore&lt;/b&gt;&lt;br&gt;Tokens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="6">
+          <mxGeometry x="830" y="80" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Auth routes note inside Lambda -->
+        <mxCell id="19" value="&lt;b&gt;/auth/login&lt;/b&gt;&lt;br&gt;/auth/change-password" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;dashed=1;" vertex="1" parent="6">
+          <mxGeometry x="970" y="80" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ── RAG pipeline steps inside Lambda ───────────────────── -->
+        <mxCell id="70" value="&lt;b&gt;RAG Pipeline&lt;/b&gt; — POST /v1/rag/query" style="swimlane;startSize=22;fillColor=#EEF7ED;strokeColor=#82b366;fontStyle=1;fontSize=10;dashed=1;" vertex="1" parent="6">
+          <mxGeometry x="20" y="180" width="820" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="71" value="&lt;b&gt;Query&lt;/b&gt;&lt;br&gt;Analyzer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="70">
+          <mxGeometry x="10" y="40" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="72" value="&lt;b&gt;Hybrid&lt;/b&gt;&lt;br&gt;Retriever&lt;br&gt;&lt;i&gt;RRF fusion&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="70">
+          <mxGeometry x="140" y="40" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="73" value="&lt;b&gt;Context&lt;/b&gt;&lt;br&gt;Builder" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="70">
+          <mxGeometry x="270" y="40" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="74" value="&lt;b&gt;LLM&lt;/b&gt;&lt;br&gt;Client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="70">
+          <mxGeometry x="400" y="40" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="75" value="&lt;b&gt;Grounding&lt;/b&gt;&lt;br&gt;Validator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="70">
+          <mxGeometry x="530" y="40" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="76" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="71" target="72" parent="70"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="77" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="72" target="73" parent="70"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="78" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="73" target="74" parent="70"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="79" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="74" target="75" parent="70"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ── CloudWatch Log Groups (inside VPC) ─────────────────── -->
+        <mxCell id="50" value="&lt;b&gt;CloudWatch Logs&lt;/b&gt;&lt;br&gt;API Gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="20" y="415" width="155" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="51" value="&lt;b&gt;CloudWatch Logs&lt;/b&gt;&lt;br&gt;Lambda" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="195" y="415" width="155" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- ── AWS services inside VPC ────────────────────────────── -->
+        <mxCell id="14" value="&lt;b&gt;Amazon DynamoDB&lt;/b&gt;&lt;br&gt;Audit Log&lt;br&gt;(Gateway Endpoint)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="20" y="510" width="155" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="15" value="&lt;b&gt;Secrets Manager&lt;/b&gt;&lt;br&gt;API Keys · JWT · API Key&lt;br&gt;(PrivateLink)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="195" y="510" width="155" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="16" value="&lt;b&gt;Amazon ECR&lt;/b&gt;&lt;br&gt;Container Registry&lt;br&gt;(Immutable Tags)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="370" y="510" width="155" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="52" value="&lt;b&gt;AWS KMS&lt;/b&gt;&lt;br&gt;CMK · Annual Rotation&lt;br&gt;Logs · DynamoDB · Lambda" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="545" y="510" width="155" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- RDS PostgreSQL / pgvector -->
+        <mxCell id="80" value="&lt;b&gt;Amazon RDS&lt;/b&gt;&lt;br&gt;PostgreSQL 16 + pgvector&lt;br&gt;Multi-AZ · CMK-encrypted" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="720" y="510" width="165" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ── Log pipeline inside VPC ────────────────────────────── -->
+        <mxCell id="53" value="&lt;b&gt;Kinesis Firehose&lt;/b&gt;&lt;br&gt;GZIP · Date-partitioned&lt;br&gt;60s / 5MB buffer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="20" y="610" width="155" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="54" value="&lt;b&gt;Amazon S3&lt;/b&gt;&lt;br&gt;Log Bucket · SSE-KMS&lt;br&gt;90d→Glacier · 365d→Expire" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="5">
+          <mxGeometry x="195" y="610" width="155" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ── External LLM providers (outside VPC) ───────────────── -->
+        <mxCell id="17" value="&lt;b&gt;Anthropic API&lt;/b&gt;&lt;br&gt;(claude-*)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1670" y="270" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="18" value="&lt;b&gt;OpenAI API&lt;/b&gt;&lt;br&gt;(gpt-*)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1670" y="360" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ── Edges ──────────────────────────────────────────────── -->
+
+        <!-- Client → API GW -->
+        <mxCell id="30" value="HTTPS&lt;br&gt;x-api-key + JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" source="2" target="4" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Cognito → API GW (JWT Authorizer) -->
+        <mxCell id="31" value="JWT Authorizer" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;dashed=1;endArrow=block;endFill=1;" edge="1" source="3" target="4" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- API GW → Auth MW -->
+        <mxCell id="32" value="invoke" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" source="4" target="7" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Auth MW → Cognito (JWKS in prod) -->
+        <mxCell id="33" value="JWKS (prod)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;dashed=1;endArrow=open;endFill=0;" edge="1" source="7" target="3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Pipeline steps -->
+        <mxCell id="34" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" source="7" target="8" parent="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="35" value="block/allow" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" source="8" target="9" parent="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="36" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" source="9" target="10" parent="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="37" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" source="10" target="11" parent="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="38" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" source="11" target="12" parent="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="39" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" source="12" target="13" parent="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- LLM Client → External providers -->
+        <mxCell id="40" value="HTTPS / TLS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" source="11" target="17" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="41" value="HTTPS / TLS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;" edge="1" source="11" target="18" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Lambda → DynamoDB -->
+        <mxCell id="42" value="audit log" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;dashed=1;" edge="1" source="6" target="14" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Lambda → Secrets Manager -->
+        <mxCell id="43" value="fetch secrets&lt;br&gt;(cold start)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;dashed=1;" edge="1" source="6" target="15" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ECR → Lambda -->
+        <mxCell id="44" value="pull image" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=10;dashed=1;endArrow=block;endFill=1;" edge="1" source="16" target="6" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- RAG Retriever → RDS (pgvector + BM25) -->
+        <mxCell id="81" value="pgvector + BM25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" source="72" target="80" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Grounding Validator → OpenAI (embeddings) -->
+        <mxCell id="82" value="embed_batch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;dashed=1;" edge="1" source="75" target="18" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Response path: Restore → Client -->
+        <mxCell id="45" value="response" style="edgeStyle=elbowEdgeStyle;elbow=vertical;rounded=0;html=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;curved=1;" edge="1" source="13" target="2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1390" y="800" />
+              <mxPoint x="70" y="800" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Lambda → CW Logs (API GW) -->
+        <mxCell id="60" value="access logs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;dashed=1;" edge="1" source="6" target="50" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Lambda → CW Logs (Lambda) -->
+        <mxCell id="61" value="function logs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;dashed=1;" edge="1" source="6" target="51" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- CW Logs (API GW) → Firehose -->
+        <mxCell id="62" value="subscription" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" source="50" target="53" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- CW Logs (Lambda) → Firehose -->
+        <mxCell id="63" value="subscription" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" source="51" target="53" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Firehose → S3 -->
+        <mxCell id="64" value="deliver" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;" edge="1" source="53" target="54" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- KMS encrypts DynamoDB + Lambda (dashed) -->
+        <mxCell id="65" value="CMK encrypt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;dashed=1;endArrow=open;endFill=0;" edge="1" source="52" target="14" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="66" value="CMK encrypt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=9;dashed=1;endArrow=open;endFill=0;" edge="1" source="52" target="54" parent="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

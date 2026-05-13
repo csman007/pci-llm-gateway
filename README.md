@@ -1,8 +1,10 @@
 # PCI LLM Gateway
 
-![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen) ![Python](https://img.shields.io/badge/python-3.12-blue) ![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
+[![Tests](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml) [![Coverage](https://codecov.io/gh/csman007/pci-llm-gateway/branch/master/graph/badge.svg)](https://codecov.io/gh/csman007/pci-llm-gateway) [![Security](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml/badge.svg?branch=master)](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml) ![Python](https://img.shields.io/badge/python-3.12-blue)
 
-A secure API gateway for routing LLM inference requests with PII detection, redaction, and output filtering to meet PCI DSS compliance requirements. Includes an agentic layer with Claude tool use, multi-agent orchestration, extended thinking, SSE streaming, and LLM-as-judge evaluation.
+A secure API gateway for routing LLM inference requests with PII detection, redaction, and output filtering to meet PCI DSS compliance requirements. Includes an agentic layer with Claude tool use, multi-agent orchestration, extended thinking, SSE streaming, and LLM-as-judge evaluation. Includes a RAG layer grounded in PCI DSS v4.0.1 with hybrid retrieval, deterministic grounding validation, and structured context formatting.
+
+[![Lint](https://github.com/csman007/pci-llm-gateway/actions/workflows/lint.yml/badge.svg?branch=master)](https://github.com/csman007/pci-llm-gateway/actions/workflows/lint.yml)
 
 ## Architecture
 
@@ -16,7 +18,18 @@ Agent layer (POST /v1/agent/run, /v1/agent/stream):
     → AgentPipeline (validate + restore)
     → LLMJudge (evaluation score)
     → Client
+
+RAG layer (POST /v1/rag/query):
+  Question → QueryAnalyzer (Haiku, intent hints)
+           → RAGRetriever (pgvector cosine + PostgreSQL BM25 → RRF fusion)
+           → _filter_chunks (score threshold + requirement_id dedup)
+           → ContextBuilder (structured blocks, char budget)
+           → LLM (answer generation, system prompt)
+           → GroundingValidator (citation check + semantic claim support)
+           → Client
 ```
+
+![AWS Architecture](architecture/aws-architecture.png)
 
 ## Services
 
@@ -28,6 +41,7 @@ Agent layer (POST /v1/agent/run, /v1/agent/stream):
 | `llm-client` | Anthropic and OpenAI client wrappers |
 | `output-filter` | Response validation and leakage detection |
 | `agent` | Orchestrator, tools, subagents, evaluator — agentic layer |
+| `rag` | Hybrid retrieval, context building, grounding validation — RAG layer |
 
 ## Agent endpoints
 
@@ -82,6 +96,86 @@ data: {"type": "done"}
 | `call_subagent` | Delegate to `compliance` (PCI DSS expert) or `analyst` (audit data interpreter) |
 
 **Tuning (env vars / Terraform variables):** all agent constants have sensible defaults and can be overridden without a code change — set them in `.env` locally or in `terraform.tfvars` for Lambda. See `.env.example` for the full list (`AGENT_MODEL_DEFAULT`, `AGENT_MAX_STEPS`, `JUDGE_MODEL`, etc.).
+
+## RAG endpoint
+
+`POST /v1/rag/query` — answers natural language questions about PCI DSS v4.0.1 with inline citations.
+
+**Request:**
+
+```json
+{
+  "question": "How long must I retain audit logs?",
+  "model": "claude-haiku-4-5-20251001",
+  "top_k": 5,
+  "max_tokens": 1024
+}
+```
+
+| Field | Type | Default | Constraints |
+|---|---|---|---|
+| `question` | `string` | required | non-empty |
+| `model` | `string` | `claude-haiku-4-5-20251001` | must be in `models.yaml` |
+| `top_k` | `int` | `5` | 1–20 |
+| `max_tokens` | `int` | `1024` | 64–4096 |
+
+**Response:**
+
+```json
+{
+  "answer": "Per Req 10.5.1, audit logs must be retained for at least 12 months...",
+  "sources": [
+    {"requirement_id": "10.5.1", "section_title": "Requirement 10.5.1", "score": 0.92}
+  ],
+  "chunks_retrieved": 1,
+  "requirement_hints": ["10.5.1", "10.7"],
+  "grounding": {
+    "is_grounded": true,
+    "score": 1.0,
+    "unsupported_claims": [],
+    "citation_result": {
+      "valid": true,
+      "cited": ["10.5.1"],
+      "retrieved": ["10.5.1"],
+      "invalid_citations": [],
+      "missing_all_citations": false
+    }
+  }
+}
+```
+
+`grounding` is `null` when `GROUNDING_VALIDATE=false` (default). `requirement_hints` lists requirement IDs extracted by QueryAnalyzer before retrieval.
+
+**Ingest PCI DSS before first use:**
+
+```bash
+python scripts/ingest_pci_dss.py \
+  --url https://www.middlebury.edu/sites/default/files/2025-01/PCI-DSS-v4_0_1.pdf
+```
+
+Chunks by requirement section (falls back to sliding-window with 200-char overlap), generates OpenAI `text-embedding-3-small` embeddings in batches of 20, inserts into pgvector.
+
+**Retrieval pipeline:**
+
+1. **QueryAnalyzer** — Haiku call extracts requirement ID hints from the question (non-fatal; failures return `[]`)
+2. **Hybrid retrieval** — pgvector cosine similarity + PostgreSQL BM25 (`plainto_tsquery`); results fused via Reciprocal Rank Fusion (RRF, k=60)
+3. **Filter** — drops chunks below `RAG_MIN_SCORE`; deduplicates by `requirement_id` (highest-score chunk per requirement kept)
+4. **ContextBuilder** — formats chunks as structured blocks with relevance scores, truncated to `CONTEXT_MAX_CHUNK_CHARS` each, total budget `RAG_CONTEXT_BUDGET_CHARS`
+5. **LLM answer** — generation with an explicit PCI DSS system prompt
+6. **GroundingValidator** — citation regex check + batched semantic claim support (one `embed_batch` call); enabled when `GROUNDING_VALIDATE=true`
+
+**RAG env vars:**
+
+| Env var | Default | Description |
+|---|---|---|
+| `POSTGRES_DSN` | — | PostgreSQL connection string (required; unset → 503) |
+| `RAG_HYBRID` | `true` | Hybrid BM25+vector retrieval |
+| `RAG_MIN_SCORE` | `0.0` | Minimum similarity score to keep a chunk |
+| `RAG_CONTEXT_BUDGET_CHARS` | `8000` | Max total characters of context passed to LLM |
+| `CONTEXT_MAX_CHUNK_CHARS` | `2000` | Max characters per chunk in context block |
+| `GROUNDING_VALIDATE` | `false` | Enable GroundingValidator |
+| `GROUNDING_THRESHOLD` | `0.82` | Cosine similarity floor for claim support |
+| `QUERY_ANALYZER_MODEL` | `claude-haiku-4-5-20251001` | Model for pre-retrieval intent classification |
 
 ## Running the app
 
@@ -146,6 +240,8 @@ pytest tests/test_redaction.py::test_pan_detected
 ```
 
 ## Deployment
+
+![Cost breakdown](architecture/aws-cost-breakdown.png)
 
 The app runs as a **container image on AWS Lambda** — not a zip file. Lambda's 250 MB zip limit is too small for this dependency set, so the image is stored in ECR and Lambda pulls it on invocation.
 
@@ -295,33 +391,36 @@ CVV and EXPIRY require keyword context (e.g. `expiry: 09/26`) to avoid false pos
 
 ### Case 1 — payment card number (blocked)
 
-**Client sends:**
-```json
-{
-  "model": "claude-haiku-4-5-20251001",
-  "prompt": "Can you summarize this transaction? Card: 4532015112830366, amount: $42.00, merchant: ACME Corp."
-}
+```bash
+curl -s -X POST http://localhost:8000/v1/inference \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5-20251001",
+    "prompt": "Can you summarize this transaction? Card: 4532015112830366, amount: $42.00, merchant: ACME Corp."
+  }'
 ```
 
-**Gateway response — `400 Bad Request`:**
-```json
-{
-  "detail": "Request blocked: contains restricted PII type(s): PAN"
-}
+```
+HTTP/1.1 400 Bad Request
+
+{"detail": "Request blocked: contains restricted PII type(s): PAN"}
 ```
 
-The number `4532015112830366` passes the Luhn checksum, so it is classified as a PAN. The request never reaches the LLM provider.
+`4532015112830366` passes the Luhn checksum, so it is classified as a PAN. The request is rejected before it reaches the LLM provider.
 
 ---
 
 ### Case 2 — email address (redacted and restored)
 
-**Client sends:**
-```json
-{
-  "model": "claude-haiku-4-5-20251001",
-  "prompt": "Draft a fraud alert for alice@example.com about suspicious activity on her account."
-}
+```bash
+curl -s -X POST http://localhost:8000/v1/inference \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5-20251001",
+    "prompt": "Draft a fraud alert for alice@example.com about suspicious activity on her account."
+  }'
 ```
 
 **What the gateway forwards to the LLM:**

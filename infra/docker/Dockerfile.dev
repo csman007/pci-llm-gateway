@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt uvicorn[standard]
 
 COPY services/ ./services/
 
-ENV PYTHONPATH=/app/services/api-gateway:/app/services/pii-detector:/app/services/prompt-processor:/app/services/llm-client:/app/services/output-filter
+ENV PYTHONPATH=/app/services/api-gateway:/app/services/pii-detector:/app/services/prompt-processor:/app/services/llm-client:/app/services/output-filter:/app/services/agent:/app/services/rag
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

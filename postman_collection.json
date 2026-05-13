@@ -13,166 +13,344 @@
   ],
   "item": [
     {
-      "name": "Generate Token (dev only)",
-      "event": [
+      "name": "Auth",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "var res = pm.response.json();",
-              "if (res.access_token) {",
-              "  pm.collectionVariables.set('jwt_token', res.access_token);",
-              "  console.log('Dev token saved');",
-              "}"
-            ]
+          "name": "Generate Token (dev only)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('jwt_token', res.access_token);",
+                  "  console.log('Dev token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/dev/token",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sub\": \"dev-user\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login via Cognito (prod)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('jwt_token', res.access_token);",
+                  "  console.log('Cognito token saved');",
+                  "} else if (res.challenge === 'NEW_PASSWORD_REQUIRED') {",
+                  "  pm.collectionVariables.set('cognito_session', res.session);",
+                  "  console.log('NEW_PASSWORD_REQUIRED — run Change Password request next');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{cognito_username}}\",\n  \"password\": \"{{cognito_password}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Change Password (first login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('jwt_token', res.access_token);",
+                  "  console.log('Password changed — token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/change-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{cognito_username}}\",\n  \"new_password\": \"NewSecurePassword123!\",\n  \"session\": \"{{cognito_session}}\"\n}"
+            }
           }
         }
-      ],
-      "request": {
-        "method": "POST",
-        "url": "{{base_url}}/dev/token",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"sub\": \"dev-user\"\n}"
-        }
-      }
+      ]
     },
     {
-      "name": "Login via Cognito (prod)",
-      "event": [
+      "name": "System",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "var res = pm.response.json();",
-              "if (res.access_token) {",
-              "  pm.collectionVariables.set('jwt_token', res.access_token);",
-              "  console.log('Cognito token saved');",
-              "} else if (res.challenge === 'NEW_PASSWORD_REQUIRED') {",
-              "  pm.collectionVariables.set('cognito_session', res.session);",
-              "  console.log('NEW_PASSWORD_REQUIRED — run Change Password request next');",
-              "}"
-            ]
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          }
+        },
+        {
+          "name": "List Models",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/v1/models",
+            "header": [{ "key": "x-api-key", "value": "{{api_key}}" }]
           }
         }
-      ],
-      "request": {
-        "method": "POST",
-        "url": "{{base_url}}/auth/login",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "x-api-key", "value": "{{api_key}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"username\": \"{{cognito_username}}\",\n  \"password\": \"{{cognito_password}}\"\n}"
-        }
-      }
+      ]
     },
     {
-      "name": "Change Password (first login)",
-      "event": [
+      "name": "Inference",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "var res = pm.response.json();",
-              "if (res.access_token) {",
-              "  pm.collectionVariables.set('jwt_token', res.access_token);",
-              "  console.log('Password changed — token saved');",
-              "}"
-            ]
+          "name": "Safe Prompt",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/inference",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Explain what a neural network is in two sentences.\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
+            }
+          }
+        },
+        {
+          "name": "Email PII (redacted)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/inference",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Draft a reply to john.doe@example.com about their account.\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
+            }
+          }
+        },
+        {
+          "name": "PAN (blocked 400)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/inference",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Is card number 4111111111111111 valid?\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
+            }
+          }
+        },
+        {
+          "name": "No Auth (401)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/inference",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Hello\",\n  \"max_tokens\": 64\n}"
+            }
           }
         }
-      ],
-      "request": {
-        "method": "POST",
-        "url": "{{base_url}}/auth/change-password",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "x-api-key", "value": "{{api_key}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"username\": \"{{cognito_username}}\",\n  \"new_password\": \"NewSecurePassword123!\",\n  \"session\": \"{{cognito_session}}\"\n}"
+      ]
+    },
+    {
+      "name": "Agent",
+      "item": [
+        {
+          "name": "Run — Compliance Query",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/agent/run",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What PCI DSS requirements apply to audit log retention?\",\n  \"thinking\": false,\n  \"max_tokens\": 2048\n}"
+            }
+          }
+        },
+        {
+          "name": "Run — Extended Thinking (Opus)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/agent/run",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Analyse the audit log for any suspicious access patterns in the last hour.\",\n  \"thinking\": true,\n  \"max_tokens\": 4096\n}"
+            }
+          }
+        },
+        {
+          "name": "Run — Audit Log Query",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/agent/run",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Show me the last 10 audit log entries.\",\n  \"thinking\": false,\n  \"max_tokens\": 1024\n}"
+            }
+          }
+        },
+        {
+          "name": "Stream — SSE",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/agent/stream",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What are the key PCI DSS requirements for encryption?\",\n  \"thinking\": false,\n  \"max_tokens\": 1024\n}"
+            }
+          }
+        },
+        {
+          "name": "Run — No Auth (401)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/agent/run",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Hello\",\n  \"max_tokens\": 64\n}"
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "Health Check",
-      "request": {
-        "method": "GET",
-        "url": "{{base_url}}/health"
-      }
-    },
-    {
-      "name": "List Models",
-      "request": {
-        "method": "GET",
-        "url": "{{base_url}}/v1/models",
-        "header": [{ "key": "x-api-key", "value": "{{api_key}}" }]
-      }
-    },
-    {
-      "name": "Inference - Safe Prompt",
-      "request": {
-        "method": "POST",
-        "url": "{{base_url}}/v1/inference",
-        "header": [
-          { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "x-api-key", "value": "{{api_key}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Explain what a neural network is in two sentences.\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
+      "name": "RAG",
+      "item": [
+        {
+          "name": "Query — Log Retention",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/rag/query",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"How long must audit logs be retained under PCI DSS?\",\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"top_k\": 5,\n  \"max_tokens\": 1024\n}"
+            }
+          }
+        },
+        {
+          "name": "Query — Encryption Requirements",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/rag/query",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What encryption is required for cardholder data at rest?\",\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"top_k\": 5,\n  \"max_tokens\": 1024\n}"
+            }
+          }
+        },
+        {
+          "name": "Query — Network Segmentation",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/rag/query",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What are the network segmentation requirements?\",\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"top_k\": 5,\n  \"max_tokens\": 1024\n}"
+            }
+          }
+        },
+        {
+          "name": "Query — No Postgres (503)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/rag/query",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Test question\",\n  \"max_tokens\": 64\n}"
+            }
+          }
+        },
+        {
+          "name": "Query — No Auth (401)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/v1/rag/query",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Test question\",\n  \"max_tokens\": 64\n}"
+            }
+          }
         }
-      }
-    },
-    {
-      "name": "Inference - Email PII (redacted)",
-      "request": {
-        "method": "POST",
-        "url": "{{base_url}}/v1/inference",
-        "header": [
-          { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "x-api-key", "value": "{{api_key}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Draft a reply to john.doe@example.com about their account.\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
-        }
-      }
-    },
-    {
-      "name": "Inference - PAN (blocked)",
-      "request": {
-        "method": "POST",
-        "url": "{{base_url}}/v1/inference",
-        "header": [
-          { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "x-api-key", "value": "{{api_key}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Is card number 4111111111111111 valid?\",\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 256\n}"
-        }
-      }
-    },
-    {
-      "name": "Inference - No Auth (401)",
-      "request": {
-        "method": "POST",
-        "url": "{{base_url}}/v1/inference",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"prompt\": \"Hello\",\n  \"max_tokens\": 64\n}"
-        }
-      }
+      ]
     }
   ]
 }

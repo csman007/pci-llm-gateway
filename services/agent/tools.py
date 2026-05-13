@@ -1,6 +1,7 @@
 import ast
 import json
 import os
+
 import boto3
 from botocore.exceptions import ClientError
 from detector import PIIDetector
@@ -64,6 +65,29 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "search_pci_dss",
+        "description": (
+            "Search the PCI DSS v4.0.1 corpus for sections relevant to a query. "
+            "Returns the most similar requirement chunks with requirement numbers. "
+            "Use this to ground compliance answers in the actual standard text."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Natural language search query about PCI DSS requirements.",
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Number of chunks to retrieve (1–10, default 5).",
+                    "default": 5,
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "call_subagent",
         "description": (
             "Delegate a specialised question to a domain expert subagent. "
@@ -106,6 +130,7 @@ def query_audit_log(limit: int = 20, user_id: str | None = None) -> str:
         kwargs: dict = {"Limit": limit}
         if user_id:
             from boto3.dynamodb.conditions import Attr
+
             kwargs["FilterExpression"] = Attr("user_id").eq(user_id)
         result = table.scan(**kwargs)
         return json.dumps(result.get("Items", []), default=str)
@@ -136,9 +161,7 @@ def analyze_pii_risk(text: str) -> str:
 
     report = {
         "entity_count": len(findings),
-        "entities": [
-            {"type": f.entity_type, "confidence": f.confidence} for f in findings
-        ],
+        "entities": [{"type": f.entity_type, "confidence": f.confidence} for f in findings],
         "risk_level": risk_level,
     }
     return json.dumps(report)
@@ -147,9 +170,18 @@ def analyze_pii_risk(text: str) -> str:
 # Allowlist of AST node types permitted in calculator expressions.
 _SAFE_NODES = (
     ast.Expression,
-    ast.BinOp, ast.UnaryOp, ast.Constant,
-    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
-    ast.USub, ast.UAdd,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.Constant,
+    ast.Add,
+    ast.Sub,
+    ast.Mult,
+    ast.Div,
+    ast.FloorDiv,
+    ast.Mod,
+    ast.Pow,
+    ast.USub,
+    ast.UAdd,
 )
 
 
@@ -166,11 +198,11 @@ def calculator(expression: str) -> str:
     try:
         tree = ast.parse(expression.strip(), mode="eval")
     except SyntaxError:
-        return f"ERROR: invalid expression syntax"
+        return "ERROR: invalid expression syntax"
 
     for node in ast.walk(tree):
         if not isinstance(node, _SAFE_NODES):
-            return f"ERROR: unsafe expression — only arithmetic operations are allowed"
+            return "ERROR: unsafe expression — only arithmetic operations are allowed"
 
     try:
         result = eval(compile(tree, "<calc>", "eval"))  # noqa: S307 — AST-validated above
@@ -179,6 +211,30 @@ def calculator(expression: str) -> str:
         return "ERROR: division by zero"
     except Exception as exc:
         return f"ERROR: evaluation failed — {exc}"
+
+
+async def _search_pci_dss(query: str, top_k: int = 5) -> str:
+    """Retrieve relevant PCI DSS v4.0.1 chunks for *query* from pgvector.
+
+    Args:
+        query: Natural language search string.
+        top_k: Number of chunks to return (clamped to 1–10).
+
+    Returns:
+        Formatted context string, or an ERROR: prefixed string if unavailable.
+    """
+    import os
+
+    if not os.environ.get("POSTGRES_DSN"):
+        return "ERROR: PCI DSS search is not available — POSTGRES_DSN is not configured."
+    try:
+        from retriever import RAGRetriever
+
+        retriever = RAGRetriever()
+        chunks = await retriever.retrieve(query, min(max(top_k, 1), 10))
+        return RAGRetriever.format_context(chunks)
+    except Exception as exc:
+        return f"ERROR: PCI DSS search failed — {exc}"
 
 
 async def execute_tool(
@@ -208,6 +264,8 @@ async def execute_tool(
         return analyze_pii_risk(inputs["text"])
     if name == "calculator":
         return calculator(inputs["expression"])
+    if name == "search_pci_dss":
+        return await _search_pci_dss(inputs["query"], inputs.get("top_k", 5))
     if name == "call_subagent":
         if subagent_runner is None or pipeline is None:
             return "ERROR: subagent runner not available"

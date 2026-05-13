@@ -1,14 +1,13 @@
 import json
 
 import anthropic
-from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
-
-from schemas.agent_schemas import AgentRequest, AgentRunResponse
-from secret_resolver import resolve_env_secret
 from agent_pipeline import AgentPipeline
 from evaluator import LLMJudge
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from orchestrator import AgentOrchestrator
+from schemas.agent_schemas import AgentRequest, AgentRunResponse
+from secret_resolver import resolve_env_secret
 from subagents import SubagentRunner
 
 router = APIRouter()
@@ -39,9 +38,7 @@ async def agent_run(request: AgentRequest):
         AgentRunResponse containing the answer, tool trace, optional thinking blocks,
         LLM-as-judge evaluation, and step count.
     """
-    result = await _orchestrator.run(
-        request.question, request.thinking, request.max_tokens
-    )
+    result = await _orchestrator.run(request.question, request.thinking, request.max_tokens)
     return AgentRunResponse(**result)
 
 
@@ -69,10 +66,9 @@ async def agent_stream(request: AgentRequest):
         response is returned at once rather than token-by-token. True streaming
         requires a persistent runtime (uvicorn, ECS, or Lambda response streaming).
     """
+
     async def event_generator():
-        async for event in _orchestrator.stream(
-            request.question, request.thinking, request.max_tokens
-        ):
+        async for event in _orchestrator.stream(request.question, request.thinking, request.max_tokens):
             yield f"data: {json.dumps(event)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
