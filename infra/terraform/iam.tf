@@ -25,6 +25,11 @@ data "aws_iam_policy_document" "lambda_permissions" {
   }
 
   statement {
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.rate_limit.arn]
+  }
+
+  statement {
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_secretsmanager_secret.anthropic_api_key.arn,
