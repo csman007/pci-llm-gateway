@@ -51,19 +51,20 @@ async def _get_jwks() -> dict:
     return _jwks_cache
 
 
-async def _decode_dev(token: str) -> str:
+async def _decode_dev(token: str) -> dict:
     payload = jwt.decode(token, _JWT_SECRET, algorithms=["HS256"])
-    return payload["sub"]
+    return {"sub": payload["sub"], "tenant_id": payload.get("tenant_id", "default")}
 
 
-async def _decode_cognito(token: str) -> str:
+async def _decode_cognito(token: str) -> dict:
     jwks = await _get_jwks()
     headers = jose_jwt.get_unverified_headers(token)
     key = next((k for k in jwks["keys"] if k["kid"] == headers["kid"]), None)
     if not key:
         raise JWTError("Public key not found")
     claims = jose_jwt.decode(token, key, algorithms=["RS256"], audience=_CLIENT_ID)
-    return claims["sub"]
+    # Cognito custom attributes are prefixed with "custom:"
+    return {"sub": claims["sub"], "tenant_id": claims.get("custom:tenant_id", "default")}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

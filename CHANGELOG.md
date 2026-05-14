@@ -1,5 +1,67 @@
 # Changelog
 
+## [0.8.0] — 2026-05-14
+
+### Multi-tenant isolation
+
+Four-layer tenant model that scopes every request to an isolated tenant context derived from the JWT `tenant_id` claim.
+
+#### Tenant model (`services/api-gateway/tenant.py`)
+
+`TenantConfig` is a dataclass loaded from DynamoDB on first request and cached in Lambda memory for `TENANT_CACHE_TTL_SECS` (default 60 s). Config is keyed by `tenant#{tenant_id}` in the tenants table.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `allowed_models` | `list[str] \| None` | Whitelist of model IDs; `None` = all allowed |
+| `blocked_entity_types` | `list[str]` | Extra PII types blocked beyond global policy |
+| `monthly_budget_usd` | `float \| None` | Hard monthly spend cap in USD; `None` = unlimited |
+| `rate_limit_inference_rpm` | `int \| None` | Per-user inference cap override; `None` = global default |
+| `rate_limit_rag_rpm` | `int \| None` | Per-user RAG cap override |
+| `rate_limit_agent_rpm` | `int \| None` | Per-user agent cap override |
+
+`get_tenant_config()` fails open on DynamoDB errors — a table outage returns a permissive default rather than blocking traffic.
+
+#### Isolation boundaries
+
+Every request is scoped at four layers:
+
+1. **JWT claim** — `tenant_id` embedded in the token (dev: explicit field; Cognito prod: `custom:tenant_id` attribute). Defaults to `"default"` when absent for backwards compatibility.
+2. **Rate limit counters** — key format changed from `{user_id}#{endpoint}#{bucket}` to `{tenant_id}#{user_id}#{endpoint}#{bucket}`. Tenants never share counters.
+3. **Spend counters** — per-tenant monthly spend item: `spend#{tenant_id}#{YYYY-MM}` with atomic `ADD`. Tenants cannot consume each other's budget.
+4. **Audit log** — `tenant_id` included in every `inference_complete` and `rag_complete` structured log entry.
+
+#### Per-tenant policy engine
+
+Applied in inference and RAG routes after global PII policy:
+
+- **Model allow-list** — `422` if the requested model is not in `allowed_models`.
+- **Additional blocked entity types** — `400` if any detected PII entity type is in `blocked_entity_types` (tenant PHONE block, for example).
+
+The agent route checks the orchestrator's resolved model (`AGENT_MODEL_DEFAULT` or `AGENT_MODEL_THINKING`) against the allow-list before starting the tool-use loop.
+
+#### Per-tenant quotas and billing (`services/api-gateway/tenant_quota.py`)
+
+- `check_budget(tenant_id, monthly_budget_usd)` — reads current month's spend counter and raises `429` with `X-Tenant-Budget-Limit` / `X-Tenant-Budget-Remaining` headers when `spend >= budget`. Called before the LLM call.
+- `record_spend(tenant_id, cost_usd)` — atomically increments the spend counter after a successful LLM call. Uses DynamoDB `ADD` to handle concurrent Lambda instances. Silently swallows errors (fail open).
+
+Spend items share the tenants table under the `spend#` prefix with a 60-day TTL.
+
+#### Auth middleware and dev token
+
+`_decode_dev()` and `_decode_cognito()` now return `{"sub": ..., "tenant_id": ...}` dicts instead of bare strings, fixing the long-standing bug where `request.state.user` was a string and rate limiting always fell back to `"anonymous"`.
+
+`POST /dev/token` accepts an optional `tenant_id` field (default `"default"`).
+
+#### Infrastructure
+
+New `aws_dynamodb_table.tenants` (KMS, PITR, TTL). Lambda IAM: `dynamodb:GetItem` + `dynamodb:UpdateItem` on tenants table. Two new Terraform variables: `tenants_table`, `tenant_cache_ttl_secs`.
+
+### Tests
+
+`tests/test_tenant.py` — 13 tests: config loading, TTL cache, DynamoDB fail-open, budget check (pass/fail/error), spend recording, contract tests for model allow-list and entity-type policy enforcement.
+
+---
+
 ## [0.7.0] — 2026-05-14
 
 ### Concurrency & scaling

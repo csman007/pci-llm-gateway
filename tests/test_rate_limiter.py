@@ -142,4 +142,4 @@ async def test_bucket_key_contains_user_endpoint_and_minute():
         await rate_limiter.check_rate_limit("alice", "rag", rpm=100)
 
     pk = table.update_item.call_args.kwargs["Key"]["pk"]
-    assert pk == f"alice#rag#{bucket}"
+    assert pk == f"default#alice#rag#{bucket}"

@@ -1,14 +1,16 @@
-"""RAG route — PCI DSS v4.0.1 question-answering with structured logging."""
+"""RAG route — PCI DSS v4.0.1 question-answering with tenant isolation and structured logging."""
 
 import logging
 import os
 
 import rate_limiter
+import tenant_quota
 from fastapi import APIRouter, Depends, HTTPException
 from model_registry import get_client
 from rag_pipeline import RAGPipeline
 from schemas.rag_schemas import RAGQueryRequest, RAGQueryResponse, RAGSource
 from structured_logger import stage_span
+from tenant import TenantConfig, require_tenant
 
 router = APIRouter()
 log = logging.getLogger("pci-gateway.rag")
@@ -20,38 +22,41 @@ def _postgres_configured() -> bool:
 
 
 @router.post("/rag/query", response_model=RAGQueryResponse, dependencies=[Depends(rate_limiter.limit("rag"))])
-async def rag_query(request: RAGQueryRequest) -> RAGQueryResponse:
-    """Query PCI DSS v4.0.1 via RAG.
-
-    Retrieves the most relevant requirement sections from pgvector, then
-    generates a grounded answer that cites specific requirement numbers.
-    Requires the PCI DSS corpus to have been ingested via scripts/ingest_pci_dss.py.
+async def rag_query(body: RAGQueryRequest, tenant: TenantConfig = Depends(require_tenant)) -> RAGQueryResponse:
+    """Query PCI DSS v4.0.1 via RAG with tenant isolation.
 
     Args:
-        request: Validated RAGQueryRequest with question, model, and options.
+        body:   Validated RAGQueryRequest with question, model, and options.
+        tenant: Resolved TenantConfig from the JWT ``tenant_id`` claim.
 
     Returns:
         RAGQueryResponse with the grounded answer, sources, and grounding metadata.
     """
     if not _postgres_configured():
+        raise HTTPException(status_code=503, detail="RAG is not available — POSTGRES_DSN is not configured.")
+
+    if tenant.allowed_models is not None and body.model not in tenant.allowed_models:
         raise HTTPException(
-            status_code=503,
-            detail="RAG is not available — POSTGRES_DSN is not configured.",
+            status_code=422,
+            detail=f"Model '{body.model}' is not permitted for tenant '{tenant.tenant_id}'",
         )
 
+    if tenant.monthly_budget_usd is not None:
+        tenant_quota.check_budget(tenant.tenant_id, tenant.monthly_budget_usd)
+
     try:
-        llm_client = get_client(request.model)
+        llm_client = get_client(body.model)
     except ValueError:
-        raise HTTPException(status_code=422, detail=f"Unsupported model: {request.model}")
+        raise HTTPException(status_code=422, detail=f"Unsupported model: {body.model}")
 
     pipeline = RAGPipeline(llm_client)
-    with stage_span(log, "rag_query", model=request.model) as meta:
+    with stage_span(log, "rag_query", model=body.model) as meta:
         try:
             result = await pipeline.query(
-                question=request.question,
-                model=request.model,
-                max_tokens=request.max_tokens,
-                top_k=request.top_k,
+                question=body.question,
+                model=body.model,
+                max_tokens=body.max_tokens,
+                top_k=body.top_k,
             )
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"RAG query failed: {exc}")
@@ -62,10 +67,13 @@ async def rag_query(request: RAGQueryRequest) -> RAGQueryResponse:
         meta["total_cost_usd"] = llm_usage.get("total_cost_usd", 0.0)
         meta["chunks_retrieved"] = len(result.get("sources", []))
 
+    tenant_quota.record_spend(tenant.tenant_id, llm_usage.get("total_cost_usd", 0.0))
+
     log.info(
         "rag_complete",
         extra={
-            "model": request.model,
+            "tenant_id": tenant.tenant_id,
+            "model": body.model,
             "chunks_retrieved": len(result.get("sources", [])),
             "prompt_tokens": llm_usage.get("prompt_tokens", 0),
             "completion_tokens": llm_usage.get("completion_tokens", 0),

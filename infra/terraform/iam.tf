@@ -30,6 +30,11 @@ data "aws_iam_policy_document" "lambda_permissions" {
   }
 
   statement {
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.tenants.arn]
+  }
+
+  statement {
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_secretsmanager_secret.anthropic_api_key.arn,

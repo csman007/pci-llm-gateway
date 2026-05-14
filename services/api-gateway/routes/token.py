@@ -9,6 +9,7 @@ router = APIRouter()
 
 class TokenRequest(BaseModel):
     sub: str = "dev-user"
+    tenant_id: str = "default"
 
 
 class TokenResponse(BaseModel):
@@ -20,5 +21,5 @@ class TokenResponse(BaseModel):
 def generate_token(body: TokenRequest):
     if os.environ.get("ENV") != "dev":
         raise HTTPException(status_code=404)
-    token = jwt.encode({"sub": body.sub}, os.environ["JWT_SECRET"], algorithm="HS256")
+    token = jwt.encode({"sub": body.sub, "tenant_id": body.tenant_id}, os.environ["JWT_SECRET"], algorithm="HS256")
     return TokenResponse(access_token=token)

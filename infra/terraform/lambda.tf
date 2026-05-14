@@ -106,6 +106,10 @@ resource "aws_lambda_function" "gateway" {
       GROUNDING_VALIDATE           = var.grounding_validate
       GROUNDING_THRESHOLD          = var.grounding_threshold
 
+      # Multi-tenancy
+      TENANTS_TABLE            = var.tenants_table
+      TENANT_CACHE_TTL_SECS    = tostring(var.tenant_cache_ttl_secs)
+
       # Concurrency & rate limiting
       RATE_LIMIT_TABLE             = var.rate_limit_table
       RATE_LIMIT_INFERENCE_RPM     = tostring(var.rate_limit_inference_rpm)
