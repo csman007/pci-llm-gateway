@@ -9,8 +9,13 @@ from routes.auth import router as auth_router
 from routes.inference import router as inference_router
 from routes.rag import router as rag_router
 from routes.token import router as token_router
+from structured_logger import configure_logging
+from tracer import setup_tracing
 
 load_dotenv()
+configure_logging()
+setup_tracing()
+
 app = FastAPI(title="PCI LLM Gateway", version="1.0.0")
 
 app.add_middleware(CORSMiddleware, allow_origins=[], allow_methods=["POST"])

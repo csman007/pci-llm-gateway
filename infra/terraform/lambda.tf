@@ -104,6 +104,11 @@ resource "aws_lambda_function" "gateway" {
       RAG_CONTEXT_BUDGET_CHARS     = tostring(var.rag_context_budget_chars)
       GROUNDING_VALIDATE           = var.grounding_validate
       GROUNDING_THRESHOLD          = var.grounding_threshold
+
+      # Observability
+      OTEL_ENABLED                 = tostring(var.otel_enabled)
+      OTEL_EXPORTER_OTLP_ENDPOINT  = var.otel_exporter_otlp_endpoint
+      OTEL_SERVICE_NAME            = var.otel_service_name
     }
   }
 }

@@ -41,12 +41,14 @@ class QueryAnalyzer:
             Returns an empty list on LLM errors or unparseable responses.
         """
         try:
-            raw = await self._llm.complete(
-                prompt=f"Question: {query}",
-                model=_ANALYZER_MODEL,
-                max_tokens=_ANALYZER_MAX_TOKENS,
-                system=_SYSTEM,
-            )
+            raw = (
+                await self._llm.complete(
+                    prompt=f"Question: {query}",
+                    model=_ANALYZER_MODEL,
+                    max_tokens=_ANALYZER_MAX_TOKENS,
+                    system=_SYSTEM,
+                )
+            ).text
             ids = json.loads(raw.strip())
             return [r for r in ids if isinstance(r, str) and _REQ_ID_RE.match(r)]
         except Exception:

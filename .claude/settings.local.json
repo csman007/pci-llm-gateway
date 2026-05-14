@@ -34,7 +34,13 @@
       "Bash(xargs cat)",
       "Bash(ruff format *)",
       "Bash(chmod +x /Users/csbdeak/dev/pci-llm-gateway/.git/hooks/pre-commit)",
-      "Bash(bash *)"
+      "Bash(bash *)",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(PYTHONPATH=services/observability:services/llm-client python *)",
+      "Bash(tfsec infra/terraform --format json)",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\({r['location']['filename'] for r in data.get\\('results',[]\\)}\\)\\)\")",
+      "Bash(git -C /Users/csbdeak/dev/pci-llm-gateway worktree list)",
+      "Bash(git *)"
     ]
   },
   "hooks": {
@@ -44,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/csbdeak/dev/pci-llm-gateway && ruff check --fix services/ scripts/ 2>&1; ruff format services/ scripts/ --quiet 2>&1"
+            "command": "bash -c 'cd /Users/csbdeak/dev/pci-llm-gateway && ruff check --fix services/ scripts/ --quiet 2>&1; ruff format services/ scripts/ --quiet 2>&1; exit 0'"
           }
         ]
       }

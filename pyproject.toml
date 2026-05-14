@@ -19,7 +19,11 @@ markers = [
     "quality: retrieval quality metrics — recall@k, precision@k, grounding",
 ]
 [tool.coverage.run]
+relative_files = true
 omit = ["*/ml_model.py"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.ruff]
 line-length = 120

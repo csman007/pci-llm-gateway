@@ -18,10 +18,15 @@ async def test_anthropic_success():
     from anthropic_client import AnthropicClient
     mock_msg = AsyncMock()
     mock_msg.content = [AsyncMock(text="hello")]
+    mock_msg.usage.input_tokens = 5
+    mock_msg.usage.output_tokens = 3
     with patch("anthropic_client._client") as mock:
         mock.messages.create = AsyncMock(return_value=mock_msg)
         result = await AnthropicClient().complete("prompt", "claude-sonnet-4-6", 10)
-    assert result == "hello"
+    assert result.text == "hello"
+    assert result.prompt_tokens == 5
+    assert result.completion_tokens == 3
+    assert result.model == "claude-sonnet-4-6"
 
 
 @pytest.mark.asyncio
@@ -89,10 +94,15 @@ async def test_openai_success():
     mock_choice.message.content = "hello"
     mock_response = AsyncMock()
     mock_response.choices = [mock_choice]
+    mock_response.usage.prompt_tokens = 4
+    mock_response.usage.completion_tokens = 2
     with patch("openai_client._client") as mock:
         mock.chat.completions.create = AsyncMock(return_value=mock_response)
         result = await OpenAIClient().complete("prompt", "gpt-4o", 10)
-    assert result == "hello"
+    assert result.text == "hello"
+    assert result.prompt_tokens == 4
+    assert result.completion_tokens == 2
+    assert result.model == "gpt-4o"
 
 
 @pytest.mark.asyncio

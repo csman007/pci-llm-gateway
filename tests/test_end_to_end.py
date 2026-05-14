@@ -4,6 +4,13 @@ from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock, patch
 import jwt
 
+from llm_response import LLMResponse
+
+
+def _make_llm_response(text: str, model: str = "claude-sonnet-4-6") -> LLMResponse:
+    """Build a mock LLMResponse with zero token counts."""
+    return LLMResponse(text=text, prompt_tokens=10, completion_tokens=5, model=model)
+
 
 def _make_token(sub: str = "user-1") -> str:
     return jwt.encode({"sub": sub}, os.environ["JWT_SECRET"], algorithm="HS256")
@@ -82,11 +89,11 @@ async def test_unsupported_model_returns_422(auth_headers):
 @pytest.mark.asyncio
 async def test_safe_prompt_reaches_llm(auth_headers):
     from main import app
-    mock_response = "A neural network is a machine learning model."
+    mock_text = "A neural network is a machine learning model."
 
     with patch("routes.inference.get_client") as mock_get_client:
         mock_client = AsyncMock()
-        mock_client.complete = AsyncMock(return_value=mock_response)
+        mock_client.complete = AsyncMock(return_value=_make_llm_response(mock_text))
         mock_get_client.return_value = mock_client
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -96,7 +103,7 @@ async def test_safe_prompt_reaches_llm(auth_headers):
                 headers=auth_headers,
             )
     assert resp.status_code == 200
-    assert resp.json()["response"] == mock_response
+    assert resp.json()["response"] == mock_text
 
 
 @pytest.mark.asyncio
@@ -104,7 +111,7 @@ async def test_invalid_llm_response_returns_502(auth_headers):
     from main import app
     with patch("routes.inference.get_client") as mock_get_client:
         mock_client = AsyncMock()
-        mock_client.complete = AsyncMock(return_value="I cannot assist with that request.")
+        mock_client.complete = AsyncMock(return_value=_make_llm_response("I cannot assist with that request."))
         mock_get_client.return_value = mock_client
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -121,7 +128,9 @@ async def test_pii_leakage_in_response_returns_502(auth_headers):
     from main import app
     with patch("routes.inference.get_client") as mock_get_client:
         mock_client = AsyncMock()
-        mock_client.complete = AsyncMock(return_value="Contact leaker@evil.com for more info.")
+        mock_client.complete = AsyncMock(
+            return_value=_make_llm_response("Contact leaker@evil.com for more info.")
+        )
         mock_get_client.return_value = mock_client
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -186,7 +195,7 @@ async def test_api_key_accepted_when_correct(auth_headers, monkeypatch):
     from main import app
     with patch("routes.inference.get_client") as mock_get_client:
         mock_client = AsyncMock()
-        mock_client.complete = AsyncMock(return_value="Hello world")
+        mock_client.complete = AsyncMock(return_value=_make_llm_response("Hello world"))
         mock_get_client.return_value = mock_client
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

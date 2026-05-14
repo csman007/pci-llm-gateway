@@ -5,6 +5,7 @@ from context_builder import ContextBuilder
 from grounding_validator import GroundingValidator
 from query_analyzer import QueryAnalyzer
 from retriever import RAGRetriever
+from token_counter import calculate_cost
 
 # ── Tuning ─────────────────────────────────────────────────────────────────────
 # Chunks with a retrieval score below this threshold are discarded before context
@@ -87,6 +88,7 @@ class RAGPipeline:
                 sources            — list of {requirement_id, section_title, score}
                 requirement_hints  — requirement IDs inferred from query intent
                 grounding          — citation + semantic support validation report
+                llm_usage          — token counts and cost from calculate_cost()
         """
         # Stage 1 — query intent classification (best-effort; never aborts query).
         try:
@@ -107,6 +109,7 @@ class RAGPipeline:
                 "sources": [],
                 "requirement_hints": requirement_hints,
                 "grounding": _empty_grounding(),
+                "llm_usage": calculate_cost(model, 0, 0),
             }
 
         # Stage 4 — structured context with character budget.
@@ -115,7 +118,9 @@ class RAGPipeline:
 
         # Stage 5 — grounded answer.  System prompt is passed explicitly so
         # the model receives the compliance instruction as a first-class message.
-        answer = await self._llm.complete(prompt=prompt, model=model, max_tokens=max_tokens, system=_RAG_SYSTEM)
+        llm_resp = await self._llm.complete(prompt=prompt, model=model, max_tokens=max_tokens, system=_RAG_SYSTEM)
+        answer = llm_resp.text
+        usage = calculate_cost(model, llm_resp.prompt_tokens, llm_resp.completion_tokens)
 
         # Stage 6 — grounding validation.
         sources = [
@@ -146,6 +151,7 @@ class RAGPipeline:
             "sources": sources,
             "requirement_hints": requirement_hints,
             "grounding": grounding,
+            "llm_usage": usage,
         }
 
 
