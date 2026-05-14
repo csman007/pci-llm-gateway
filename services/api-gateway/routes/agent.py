@@ -1,9 +1,10 @@
 import json
 
 import anthropic
+import rate_limiter
 from agent_pipeline import AgentPipeline
 from evaluator import LLMJudge
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from orchestrator import AgentOrchestrator
 from schemas.agent_schemas import AgentRequest, AgentRunResponse
@@ -24,7 +25,7 @@ _judge = LLMJudge(_anthropic_client)
 _orchestrator = AgentOrchestrator(_anthropic_client, _pipeline, _subagent_runner, _judge)
 
 
-@router.post("/agent/run", response_model=AgentRunResponse)
+@router.post("/agent/run", response_model=AgentRunResponse, dependencies=[Depends(rate_limiter.limit("agent"))])
 async def agent_run(request: AgentRequest):
     """Run the agent to completion and return the full result.
 
@@ -42,7 +43,7 @@ async def agent_run(request: AgentRequest):
     return AgentRunResponse(**result)
 
 
-@router.post("/agent/stream")
+@router.post("/agent/stream", dependencies=[Depends(rate_limiter.limit("agent"))])
 async def agent_stream(request: AgentRequest):
     """Stream the agent's work as Server-Sent Events.
 

@@ -53,9 +53,10 @@ resource "aws_lambda_function" "gateway" {
   role          = aws_iam_role.lambda_exec.arn
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.gateway.repository_url}:latest"
-  timeout       = 30
-  memory_size   = 1024
-  kms_key_arn   = aws_kms_key.pci.arn
+  timeout                        = 30
+  memory_size                    = 1024
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
+  kms_key_arn                    = aws_kms_key.pci.arn
 
   vpc_config {
     subnet_ids         = aws_subnet.private[*].id
@@ -104,6 +105,15 @@ resource "aws_lambda_function" "gateway" {
       RAG_CONTEXT_BUDGET_CHARS     = tostring(var.rag_context_budget_chars)
       GROUNDING_VALIDATE           = var.grounding_validate
       GROUNDING_THRESHOLD          = var.grounding_threshold
+
+      # Concurrency & rate limiting
+      RATE_LIMIT_TABLE             = var.rate_limit_table
+      RATE_LIMIT_INFERENCE_RPM     = tostring(var.rate_limit_inference_rpm)
+      RATE_LIMIT_RAG_RPM           = tostring(var.rate_limit_rag_rpm)
+      RATE_LIMIT_AGENT_RPM         = tostring(var.rate_limit_agent_rpm)
+      CIRCUIT_BREAKER_FAILURE_THRESHOLD      = tostring(var.circuit_breaker_failure_threshold)
+      CIRCUIT_BREAKER_FAILURE_WINDOW_SECS    = tostring(var.circuit_breaker_failure_window_secs)
+      CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECS  = tostring(var.circuit_breaker_recovery_timeout_secs)
 
       # Observability
       OTEL_ENABLED                 = tostring(var.otel_enabled)

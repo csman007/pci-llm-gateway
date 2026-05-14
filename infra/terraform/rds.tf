@@ -15,6 +15,7 @@ resource "aws_security_group" "rds" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description     = "PostgreSQL from Lambda security group"
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
@@ -22,6 +23,7 @@ resource "aws_security_group" "rds" {
   }
 
   egress {
+    description = "All outbound (needed for RDS patching via managed endpoints)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -58,8 +60,11 @@ resource "aws_db_instance" "pgvector" {
   backup_window           = "03:00-04:00"
   maintenance_window      = "mon:04:00-mon:05:00"
 
-  performance_insights_enabled = true
-  monitoring_interval          = 60
+  performance_insights_enabled          = true
+  performance_insights_kms_key_id       = aws_kms_key.pci.arn
+  performance_insights_retention_period = 7
+  iam_database_authentication_enabled   = true
+  monitoring_interval                   = 60
 
   tags = { Name = "pci-llm-gateway-pgvector" }
 }

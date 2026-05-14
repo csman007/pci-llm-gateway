@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.7.0] — 2026-05-14
+
+### Concurrency & scaling
+
+#### Per-user rate limiting (`services/api-gateway/rate_limiter.py`)
+
+DynamoDB-backed fixed-window rate limiter applied to every authenticated endpoint as a FastAPI dependency. Each `user_id` (JWT `sub`) gets its own counter per endpoint per 60-second window. On limit breach the caller receives:
+
+```
+HTTP 429 Too Many Requests
+Retry-After: <seconds>
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: <unix timestamp>
+```
+
+| Endpoint | Default limit | Env var |
+|---|---|---|
+| `POST /v1/inference` | 60 req/min | `RATE_LIMIT_INFERENCE_RPM` |
+| `POST /v1/rag/query` | 20 req/min | `RATE_LIMIT_RAG_RPM` |
+| `POST /v1/agent/run` + `/stream` | 30 req/min | `RATE_LIMIT_AGENT_RPM` |
+
+Disabled locally when `RATE_LIMIT_TABLE` is unset. DynamoDB errors fail-open — a table outage never blocks requests.
+
+**DynamoDB counter schema**: `pk = {user_id}#{endpoint}#{minute_bucket}`. The `ttl` attribute auto-expires old buckets. Atomic `UpdateItem` with `ADD count 1` prevents race conditions across Lambda instances.
+
+#### Per-provider circuit breakers (`services/llm-client/circuit_breaker.py`)
+
+In-process circuit breaker per LLM provider (Anthropic, OpenAI). Protects against cascading failures when a provider is degraded:
+
+| State | Trigger | Behaviour |
+|---|---|---|
+| `CLOSED` | default | All calls go through |
+| `OPEN` | ≥ N provider failures in window | Calls fail fast with `503` + `Retry-After` |
+| `HALF_OPEN` | After recovery timeout | One probe call; success → CLOSED, failure → OPEN |
+
+Default thresholds (all overridable via env vars):
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `5` | Failures needed to open the circuit |
+| `CIRCUIT_BREAKER_FAILURE_WINDOW_SECS` | `60` | Sliding window over which failures are counted |
+| `CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECS` | `30` | Seconds in OPEN before transitioning to HALF_OPEN |
+
+Only **provider-level** failures (`429`, `5xx` from the LLM API) trip the circuit. Client errors (`401` bad key, `400` bad request) pass through without affecting circuit state.
+
+#### Lambda reserved concurrency (`infra/terraform/lambda.tf`)
+
+`reserved_concurrent_executions` is now wired from `var.lambda_reserved_concurrency` (default: `50`). This sets a hard cap on parallel Lambda invocations and acts as the primary **backpressure** mechanism:
+
+- At the cap, AWS Lambda throttles new invocations with `429 TooManyRequestsException`.
+- API Gateway translates this to an HTTP `429` to callers.
+- **Throughput formula**: `reserved_concurrency / avg_latency_secs`. With 50 concurrency at 2.5 s avg: ~20 req/s peak.
+
+#### New DynamoDB table
+
+`aws_dynamodb_table.rate_limit` (name from `var.rate_limit_table`, default `pci-llm-gateway-rate-limit`): PAY_PER_REQUEST billing, KMS encryption, TTL, PITR enabled. IAM policy grants `dynamodb:UpdateItem` to Lambda.
+
+### Tests
+
+- `tests/test_circuit_breaker.py` — 11 tests covering all state transitions: CLOSED→OPEN→HALF_OPEN→CLOSED, failure window expiry, non-trip exceptions, registry isolation.
+- `tests/test_rate_limiter.py` — 8 tests: under/at/over limit, per-user and per-endpoint isolation, DynamoDB fail-open, no-table noop, bucket key format.
+
+---
+
 ## [0.6.0] — 2026-05-14
 
 ### Observability — OpenTelemetry tracing, structured logging, and cost tracking

@@ -176,6 +176,56 @@ variable "grounding_threshold" {
   default     = "0.82"
 }
 
+# ── Concurrency & rate limiting ────────────────────────────────────────────
+
+variable "lambda_reserved_concurrency" {
+  description = "Reserved concurrent executions for the Lambda function (-1 = unreserved)"
+  type        = number
+  default     = 50
+}
+
+variable "rate_limit_table" {
+  description = "DynamoDB table name for per-user rate limit counters"
+  type        = string
+  default     = "pci-llm-gateway-rate-limit"
+}
+
+variable "rate_limit_inference_rpm" {
+  description = "Maximum inference requests per user per minute"
+  type        = number
+  default     = 60
+}
+
+variable "rate_limit_rag_rpm" {
+  description = "Maximum RAG query requests per user per minute"
+  type        = number
+  default     = 20
+}
+
+variable "rate_limit_agent_rpm" {
+  description = "Maximum agent requests per user per minute"
+  type        = number
+  default     = 30
+}
+
+variable "circuit_breaker_failure_threshold" {
+  description = "Number of provider failures within the window before the circuit opens"
+  type        = number
+  default     = 5
+}
+
+variable "circuit_breaker_failure_window_secs" {
+  description = "Sliding window (seconds) over which failures are counted"
+  type        = number
+  default     = 60
+}
+
+variable "circuit_breaker_recovery_timeout_secs" {
+  description = "Seconds the circuit stays OPEN before transitioning to HALF_OPEN"
+  type        = number
+  default     = 30
+}
+
 # ── Observability ──────────────────────────────────────────────────────────
 
 variable "otel_enabled" {

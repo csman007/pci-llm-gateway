@@ -3,7 +3,8 @@
 import logging
 import os
 
-from fastapi import APIRouter, HTTPException
+import rate_limiter
+from fastapi import APIRouter, Depends, HTTPException
 from model_registry import get_client
 from rag_pipeline import RAGPipeline
 from schemas.rag_schemas import RAGQueryRequest, RAGQueryResponse, RAGSource
@@ -18,7 +19,7 @@ def _postgres_configured() -> bool:
     return bool(os.environ.get("POSTGRES_DSN"))
 
 
-@router.post("/rag/query", response_model=RAGQueryResponse)
+@router.post("/rag/query", response_model=RAGQueryResponse, dependencies=[Depends(rate_limiter.limit("rag"))])
 async def rag_query(request: RAGQueryRequest) -> RAGQueryResponse:
     """Query PCI DSS v4.0.1 via RAG.
 

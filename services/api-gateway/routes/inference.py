@@ -2,8 +2,9 @@
 
 import logging
 
+import rate_limiter
 from detector import PIIDetector
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from leakage_detector import LeakageDetector
 from model_registry import MODEL_NAMES, get_client
 from policy_engine import PolicyEngine
@@ -32,7 +33,7 @@ def list_models() -> dict:
     return {"models": MODEL_NAMES}
 
 
-@router.post("/inference", response_model=InferenceResponse)
+@router.post("/inference", response_model=InferenceResponse, dependencies=[Depends(rate_limiter.limit("inference"))])
 async def inference(request: InferenceRequest) -> InferenceResponse:
     """Run a prompt through the full PII-safe inference pipeline.
 

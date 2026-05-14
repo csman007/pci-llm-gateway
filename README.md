@@ -353,6 +353,59 @@ In Postman, set the `api_key` collection variable. Use **Generate Token (dev onl
 | `JWT_SECRET_ARN` | Secrets Manager ARN for the JWT secret |
 | `API_KEY_SECRET_ARN` | Secrets Manager ARN for the API key (`x-api-key` header) |
 
+## Concurrency & Scaling
+
+### Throughput capacity
+
+The app runs on AWS Lambda. Throughput is bounded by reserved concurrency and average request latency:
+
+```
+peak throughput (req/s) = reserved_concurrency / avg_latency_secs
+```
+
+| Config | Value | Notes |
+|---|---|---|
+| Reserved concurrency | 50 (default) | Set via `var.lambda_reserved_concurrency` in Terraform |
+| Typical LLM latency | 1–5 s | Varies by model and token count |
+| **Peak throughput** | **10–50 req/s** | At 50 concurrency |
+| Memory | 1024 MB | Each instance handles one request at a time |
+
+### Backpressure
+
+When all 50 reserved slots are occupied, Lambda throttles new invocations with `429 TooManyRequestsException`. API Gateway propagates this as an HTTP `429` to callers. No queue sits in front — callers are responsible for exponential back-off with jitter.
+
+For async workloads (batch compliance scans, bulk ingestion), place an SQS queue in front of Lambda: the queue absorbs spikes, and Lambda consumes at its concurrency ceiling without dropping requests.
+
+### Rate limiting
+
+Every authenticated endpoint is rate-limited per user (JWT `sub` claim) using a DynamoDB fixed-window counter. Limits are configurable per endpoint:
+
+| Endpoint | Default | Env var |
+|---|---|---|
+| `POST /v1/inference` | 60 req/min | `RATE_LIMIT_INFERENCE_RPM` |
+| `POST /v1/rag/query` | 20 req/min | `RATE_LIMIT_RAG_RPM` |
+| `POST /v1/agent/run` + `/stream` | 30 req/min | `RATE_LIMIT_AGENT_RPM` |
+
+On breach: `429` with `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers. DynamoDB errors fail-open — a table outage never blocks requests. Rate limiting is disabled locally when `RATE_LIMIT_TABLE` is unset.
+
+### Circuit breakers
+
+Each LLM provider (Anthropic, OpenAI) has an in-process circuit breaker that prevents cascading failures:
+
+```
+CLOSED ──(≥5 provider failures in 60s)──► OPEN ──(after 30s)──► HALF_OPEN
+  ▲                                                                    │
+  └──────────────────────(first success)──────────────────────────────┘
+```
+
+- **OPEN** state returns `503 Service Unavailable` with `Retry-After` immediately — no LLM call is made.
+- Only provider failures (`429`, `5xx` from the LLM API) trip the circuit. Auth errors (`401`) pass through.
+- Circuit state is per Lambda instance (in-process). Across all instances under load, individual circuits provide local protection against a degraded provider.
+
+All thresholds (`CIRCUIT_BREAKER_FAILURE_THRESHOLD`, `CIRCUIT_BREAKER_FAILURE_WINDOW_SECS`, `CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECS`) are configurable via env vars.
+
+---
+
 ## Observability
 
 Every inference and RAG request emits structured JSON logs, distributed traces, and per-request cost data.
