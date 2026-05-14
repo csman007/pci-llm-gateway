@@ -1,11 +1,16 @@
 import asyncio
+import logging
 import os
 
 from context_builder import ContextBuilder
 from grounding_validator import GroundingValidator
+from injection_detector import InjectionDetector
 from query_analyzer import QueryAnalyzer
 from retriever import RAGRetriever
 from token_counter import calculate_cost
+
+_inject_detector = InjectionDetector()
+log = logging.getLogger("pci-gateway.rag_pipeline")
 
 # ── Tuning ─────────────────────────────────────────────────────────────────────
 # Chunks with a retrieval score below this threshold are discarded before context
@@ -102,6 +107,10 @@ class RAGPipeline:
         # Stage 3 — score filter + requirement_id deduplication.
         chunks = _filter_chunks(raw_chunks, min_score=_MIN_SCORE)
 
+        # Stage 3b — indirect injection guard: drop any chunk whose text matches
+        # a BLOCK-severity injection pattern before it enters the context window.
+        chunks = _filter_injection_chunks(chunks)
+
         # Short-circuit: no usable context → safe refusal, skip LLM call.
         if not chunks:
             return {
@@ -156,6 +165,31 @@ class RAGPipeline:
 
 
 # ── Pipeline helpers ───────────────────────────────────────────────────────────
+
+
+def _filter_injection_chunks(chunks: list[dict]) -> list[dict]:
+    """Drop chunks whose text contains BLOCK-severity injection patterns.
+
+    Protects against indirect prompt injection where adversarial content
+    embedded in a retrieved document attempts to hijack the model when
+    included in the context window.
+
+    Args:
+        chunks: Chunks after score-filtering and deduplication.
+
+    Returns:
+        Subset of *chunks* with any injection-poisoned entries removed.
+    """
+    safe = []
+    for chunk in chunks:
+        text = chunk.get("chunk_text", "")
+        findings = _inject_detector.scan(text)
+        _inject_detector.log_findings(findings, source="rag_chunk")
+        if not _inject_detector.is_blocked(findings):
+            safe.append(chunk)
+        else:
+            log.warning("rag_chunk_dropped_injection", extra={"requirement_id": chunk.get("requirement_id")})
+    return safe
 
 
 def _filter_chunks(chunks: list[dict], min_score: float) -> list[dict]:

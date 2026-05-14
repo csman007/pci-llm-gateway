@@ -6,6 +6,7 @@ import os
 import rate_limiter
 import tenant_quota
 from fastapi import APIRouter, Depends, HTTPException
+from injection_detector import InjectionDetector
 from model_registry import get_client
 from rag_pipeline import RAGPipeline
 from schemas.rag_schemas import RAGQueryRequest, RAGQueryResponse, RAGSource
@@ -14,6 +15,7 @@ from tenant import TenantConfig, require_tenant
 
 router = APIRouter()
 log = logging.getLogger("pci-gateway.rag")
+_inject_detector = InjectionDetector()
 
 
 def _postgres_configured() -> bool:
@@ -40,6 +42,11 @@ async def rag_query(body: RAGQueryRequest, tenant: TenantConfig = Depends(requir
             status_code=422,
             detail=f"Model '{body.model}' is not permitted for tenant '{tenant.tenant_id}'",
         )
+
+    inject_findings = _inject_detector.scan(body.question)
+    _inject_detector.log_findings(inject_findings, source="rag_question")
+    if _inject_detector.is_blocked(inject_findings):
+        raise HTTPException(status_code=400, detail="Request blocked: prompt injection detected")
 
     if tenant.monthly_budget_usd is not None:
         tenant_quota.check_budget(tenant.tenant_id, tenant.monthly_budget_usd)

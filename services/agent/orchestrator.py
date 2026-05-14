@@ -10,6 +10,7 @@ from evaluator import LLMJudge
 from fastapi import HTTPException
 from prompts import ORCHESTRATOR_SYSTEM
 from subagents import SubagentRunner
+from tool_validator import scan_tool_result, validate_tool_name
 from tools import TOOL_DEFINITIONS, execute_tool
 
 _MODEL_DEFAULT = os.environ.get("AGENT_MODEL_DEFAULT", "claude-sonnet-4-6")
@@ -199,12 +200,17 @@ class AgentOrchestrator:
                     if block["type"] != "tool_use":
                         continue
                     yield {"type": "tool_call", "name": block["name"], "input": block["input"]}
-                    result = await execute_tool(
-                        block["name"],
-                        block["input"],
-                        subagent_runner=self._subagent_runner,
-                        pipeline=self._pipeline,
-                    )
+                    name_error = validate_tool_name(block["name"])
+                    if name_error is not None:
+                        result = name_error
+                    else:
+                        result = await execute_tool(
+                            block["name"],
+                            block["input"],
+                            subagent_runner=self._subagent_runner,
+                            pipeline=self._pipeline,
+                        )
+                        result = scan_tool_result(result, block["name"])
                     tool_trace.append(
                         {
                             "tool_name": block["name"],
@@ -298,12 +304,17 @@ class AgentOrchestrator:
         for block in content:
             if not (hasattr(block, "type") and block.type == "tool_use"):
                 continue
-            result = await execute_tool(
-                block.name,
-                block.input,
-                subagent_runner=self._subagent_runner,
-                pipeline=self._pipeline,
-            )
+            name_error = validate_tool_name(block.name)
+            if name_error is not None:
+                result = name_error
+            else:
+                result = await execute_tool(
+                    block.name,
+                    block.input,
+                    subagent_runner=self._subagent_runner,
+                    pipeline=self._pipeline,
+                )
+                result = scan_tool_result(result, block.name)
             trace.append(
                 {
                     "tool_name": block.name,
