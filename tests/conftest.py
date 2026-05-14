@@ -4,7 +4,7 @@ from pathlib import Path
 
 _root = Path(__file__).parent.parent
 
-for service in ["pii-detector", "prompt-processor", "llm-client", "output-filter", "api-gateway", "agent"]:
+for service in ["pii-detector", "prompt-processor", "llm-client", "output-filter", "api-gateway", "agent", "observability"]:
     sys.path.insert(0, str(_root / "services" / service))
 
 os.environ.setdefault("ENV", "dev")

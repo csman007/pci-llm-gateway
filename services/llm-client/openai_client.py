@@ -1,5 +1,6 @@
 import openai
 from fastapi import HTTPException
+from llm_response import LLMResponse
 from openai import AsyncOpenAI
 from secret_resolver import resolve_env_secret
 
@@ -7,7 +8,20 @@ _client = AsyncOpenAI(api_key=resolve_env_secret("OPENAI_API_KEY_SECRET_ARN", "O
 
 
 class OpenAIClient:
-    async def complete(self, prompt: str, model: str, max_tokens: int, system: str | None = None) -> str:
+    """Async wrapper around the OpenAI Chat Completions API with unified error mapping."""
+
+    async def complete(self, prompt: str, model: str, max_tokens: int, system: str | None = None) -> LLMResponse:
+        """Send *prompt* to the OpenAI API and return a structured response.
+
+        Args:
+            prompt:     User message text.
+            model:      OpenAI model identifier.
+            max_tokens: Maximum tokens to generate.
+            system:     Optional system prompt inserted as a system message.
+
+        Returns:
+            LLMResponse with text, token counts, and model identifier.
+        """
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -19,7 +33,12 @@ class OpenAIClient:
                 messages=messages,
                 max_tokens=max_tokens,
             )
-            return response.choices[0].message.content
+            return LLMResponse(
+                text=response.choices[0].message.content,
+                prompt_tokens=response.usage.prompt_tokens,
+                completion_tokens=response.usage.completion_tokens,
+                model=model,
+            )
         except openai.AuthenticationError:
             raise HTTPException(status_code=401, detail="OpenAI: invalid API key")
         except openai.RateLimitError as e:

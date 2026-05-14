@@ -175,3 +175,23 @@ variable "grounding_threshold" {
   type        = string
   default     = "0.82"
 }
+
+# ── Observability ──────────────────────────────────────────────────────────
+
+variable "otel_enabled" {
+  description = "Enable OpenTelemetry tracing; when false a no-op provider is used"
+  type        = bool
+  default     = false
+}
+
+variable "otel_exporter_otlp_endpoint" {
+  description = "OTLP HTTP endpoint for span export (e.g. http://collector:4318)"
+  type        = string
+  default     = ""
+}
+
+variable "otel_service_name" {
+  description = "Service name reported in OTEL resource attributes"
+  type        = string
+  default     = "pci-llm-gateway"
+}

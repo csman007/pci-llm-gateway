@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.6.0] — 2026-05-14
+
+### Observability — OpenTelemetry tracing, structured logging, and cost tracking
+
+New `services/observability/` layer providing production-grade observability as a cross-cutting concern that wraps each pipeline without changing business logic.
+
+**OpenTelemetry tracing (`services/observability/tracer.py`)**
+
+- `setup_tracing()` installs an `OTLPSpanExporter` (HTTP/protobuf) when `OTEL_ENABLED=true`; falls back to a `NoOpTracerProvider` by default — zero overhead when disabled.
+- All OTEL imports are guarded with `try/except ImportError` so the app starts without the packages installed.
+- `get_tracer(name)` — returns a named tracer scoped to the service name.
+- `current_trace_id()` / `current_span_id()` — returns the hex trace/span ID of the active span, or `""` when no span is active.
+
+**Structured JSON logging (`services/observability/structured_logger.py`)**
+
+- `_JsonFormatter` replaces the default `logging.Formatter` and emits one JSON line per record:
+  ```json
+  {"timestamp":"2026-05-14T12:00:00.000Z","level":"INFO","logger":"inference","message":"inference_complete","trace_id":"abc123","span_id":"def456","latency_ms":142,"total_cost_usd":0.0028}
+  ```
+- `configure_logging(level)` replaces the root logger's handlers — called once at app startup in `main.py`.
+- `@contextmanager stage_span(logger, stage, **attrs)` — times a named pipeline stage and emits a structured log entry on exit with `latency_ms`.
+- `_TraceFilter` (in `middleware/logging.py`) injects `trace_id`/`span_id` from the active OTEL span into every log record.
+
+**Token and cost tracking (`services/observability/token_counter.py`)**
+
+- Pricing table ($/M tokens) for 7 models (Opus 4.7, Sonnet 4.6, Haiku 4.5, all Sonnet/Haiku variants). All prices overridable via env vars.
+- `calculate_cost(model, prompt_tokens, completion_tokens)` returns a dict with `prompt_tokens`, `completion_tokens`, `total_tokens`, `input_cost_usd`, `output_cost_usd`, `total_cost_usd`.
+
+**`LLMResponse` dataclass (`services/llm-client/llm_response.py`)**
+
+Unified return type from `complete()` in both LLM clients:
+```python
+@dataclass
+class LLMResponse:
+    text: str
+    prompt_tokens: int
+    completion_tokens: int
+    model: str
+```
+
+`AnthropicClient.complete()` and `OpenAIClient.complete()` now return `LLMResponse` instead of `str`.
+
+**Inference pipeline instrumentation (`services/api-gateway/routes/inference.py`)**
+
+All seven pipeline stages wrapped in `stage_span`:
+`pii_detect → policy_enforce → redact → llm_complete → output_validate → leakage_detect → restore`
+
+A summary `inference_complete` log is emitted at the end of each request with latency, token counts, and cost. The entire request is enclosed in an OTEL span via `get_tracer("inference")`.
+
+**RAG pipeline instrumentation (`services/api-gateway/routes/rag.py`)**
+
+RAG pipeline call wrapped in `stage_span`; `llm_usage` (tokens + cost) logged per query.
+
+### New environment variables
+
+| Env var | Default | Controls |
+|---|---|---|
+| `OTEL_ENABLED` | `false` | Enable OTEL span export to the configured endpoint |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `""` | OTLP HTTP endpoint (e.g. `http://localhost:4318`) |
+| `OTEL_SERVICE_NAME` | `pci-llm-gateway` | Service name attached to all spans |
+
+All three are declared in `variables.tf` and wired into Lambda `environment.variables` in `lambda.tf`.
+
+---
+
 ## [0.5.0] — 2026-05-07
 
 ### Linting & CI

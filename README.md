@@ -42,6 +42,7 @@ RAG layer (POST /v1/rag/query):
 | `output-filter` | Response validation and leakage detection |
 | `agent` | Orchestrator, tools, subagents, evaluator — agentic layer |
 | `rag` | Hybrid retrieval, context building, grounding validation — RAG layer |
+| `observability` | Structured JSON logging, OTEL tracing, per-request cost tracking |
 
 ## Agent endpoints
 
@@ -351,6 +352,53 @@ In Postman, set the `api_key` collection variable. Use **Generate Token (dev onl
 | `OPENAI_API_KEY_SECRET_ARN` | Secrets Manager ARN for the OpenAI key |
 | `JWT_SECRET_ARN` | Secrets Manager ARN for the JWT secret |
 | `API_KEY_SECRET_ARN` | Secrets Manager ARN for the API key (`x-api-key` header) |
+
+## Observability
+
+Every inference and RAG request emits structured JSON logs, distributed traces, and per-request cost data.
+
+### Structured logs
+
+All logs are emitted as single-line JSON (one object per log record):
+```json
+{
+  "timestamp": "2026-05-14T12:00:00.000Z",
+  "level": "INFO",
+  "logger": "inference",
+  "message": "inference_complete",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "stage": "llm_complete",
+  "latency_ms": 142,
+  "prompt_tokens": 312,
+  "completion_tokens": 128,
+  "total_cost_usd": 0.0028
+}
+```
+
+`configure_logging()` in `services/observability/structured_logger.py` replaces the root logger's handlers at startup. The `stage_span` context manager times each pipeline stage and logs it on exit.
+
+### OpenTelemetry tracing
+
+Set `OTEL_ENABLED=true` to export spans to any OTLP HTTP endpoint (Jaeger, Grafana Tempo, AWS X-Ray ADOT collector, etc.). Disabled by default — zero overhead when off.
+
+| Env var | Default | Description |
+|---|---|---|
+| `OTEL_ENABLED` | `false` | Enable OTLP span export |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `""` | OTLP HTTP endpoint (e.g. `http://localhost:4318`) |
+| `OTEL_SERVICE_NAME` | `pci-llm-gateway` | Service name on all spans |
+
+### Cost tracking
+
+`calculate_cost(model, prompt_tokens, completion_tokens)` in `services/observability/token_counter.py` uses a per-model pricing table ($/M tokens) and returns `input_cost_usd`, `output_cost_usd`, and `total_cost_usd` for every LLM call. The result is included in the `inference_complete` and `rag_complete` log entries.
+
+### Services table
+
+| Service | Path | Purpose |
+|---|---|---|
+| `observability` | `services/observability/` | Structured logging, OTEL tracing, cost tracking |
+
+---
 
 ## PII Detection & Policy
 
