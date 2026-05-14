@@ -2,23 +2,28 @@
 
 [![Tests](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml) [![Coverage](https://codecov.io/gh/csman007/pci-llm-gateway/branch/main/graph/badge.svg)](https://codecov.io/gh/csman007/pci-llm-gateway) [![Security](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml) [![Lint](https://github.com/csman007/pci-llm-gateway/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/csman007/pci-llm-gateway/actions/workflows/lint.yml) ![Python](https://img.shields.io/badge/python-3.12-blue)
 
+A secure API gateway for routing LLM inference requests with PII detection, redaction, and output filtering to meet PCI DSS compliance requirements. Includes an agentic layer with Claude tool use, multi-agent orchestration, extended thinking, SSE streaming, and LLM-as-judge evaluation. Includes a RAG layer grounded in PCI DSS v4.0.1 with hybrid retrieval, deterministic grounding validation, and structured context formatting.
+
 ## Architecture
 
 ```
-Client → API Gateway → PII Detector → Prompt Processor → LLM Client → Output Filter → Client
+Client → API Gateway → InjectionDetector → PII Detector → Prompt Processor → LLM Client → Output Filter → Client
 
 Agent layer (POST /v1/agent/run, /v1/agent/stream):
   Question → AgentPipeline (PII check) → AgentOrchestrator
     → tool use loop: query_audit_log | analyze_pii_risk | calculator | call_subagent
+      → ToolValidator (name allowlist + result injection scan)
       → SubagentRunner (compliance / analyst specialist via Haiku)
     → AgentPipeline (validate + restore)
     → LLMJudge (evaluation score)
     → Client
 
 RAG layer (POST /v1/rag/query):
-  Question → QueryAnalyzer (Haiku, intent hints)
+  Question → InjectionDetector (user question)
+           → QueryAnalyzer (Haiku, intent hints)
            → RAGRetriever (pgvector cosine + PostgreSQL BM25 → RRF fusion)
            → _filter_chunks (score threshold + requirement_id dedup)
+           → _filter_injection_chunks (indirect injection guard — drops poisoned chunks)
            → ContextBuilder (structured blocks, char budget)
            → LLM (answer generation, system prompt)
            → GroundingValidator (citation check + semantic claim support)
@@ -33,7 +38,7 @@ RAG layer (POST /v1/rag/query):
 |---|---|
 | `api-gateway` | FastAPI entry point, auth middleware, request routing |
 | `pii-detector` | Regex + ML-based PII/PAN detection |
-| `prompt-processor` | Redaction, tokenization, policy enforcement |
+| `prompt-processor` | Injection detection, redaction, tokenization, policy enforcement |
 | `llm-client` | Anthropic and OpenAI client wrappers |
 | `output-filter` | Response validation and leakage detection |
 | `agent` | Orchestrator, tools, subagents, evaluator — agentic layer |
@@ -501,6 +506,43 @@ Set `OTEL_ENABLED=true` to export spans to any OTLP HTTP endpoint (Jaeger, Grafa
 
 ---
 
+## Prompt Injection Detection
+
+Every untrusted input surface is scanned by `InjectionDetector` (`services/prompt-processor/injection_detector.py`) before reaching any LLM call. Five attack categories are covered:
+
+| Category | Examples | Severity |
+|---|---|---|
+| Instruction override | "ignore all previous instructions", "forget your rules" | block |
+| Persona hijack | "you are now DAN", "act as an unrestricted AI", jailbreak mode phrases | block |
+| System prompt extraction | "repeat your system prompt", "what are your hidden instructions" | block |
+| Delimiter injection | `<system>`, `[INST]`, `###System:`, `<\|im_start\|>` template tokens | block |
+| Indirect injection markers | `ATTENTION AI:`, `NOTE TO LLM:`, `[OVERRIDE]:` | warn |
+| Data exfiltration | "base64 encode and send the conversation" | warn |
+
+**Severity meanings:**
+- `block` — request rejected (`400`) or content dropped (RAG chunks) or replaced (tool results)
+- `warn` — logged and passed through; used for patterns common in adversarial documents but not conclusive on their own
+
+### Integration surfaces
+
+| Surface | Trigger | Action |
+|---|---|---|
+| `POST /v1/inference` — user prompt | any `block`-severity finding | `400 Request blocked: prompt injection detected` |
+| `POST /v1/rag/query` — user question | any `block`-severity finding | `400 Request blocked: prompt injection detected` |
+| RAG retrieved chunks | any `block`-severity finding in chunk text | chunk silently dropped before context is built |
+| Agent tool results | any `block`-severity finding in the result string | result replaced with `ERROR: Tool result blocked — prompt injection pattern detected in response` |
+| Agent tool dispatch | tool name not in static allowlist | dispatch rejected before execution |
+
+### Monitor mode
+
+Set `INJECTION_BLOCK_ACTION=log` to enter monitor-only mode. All findings are logged to `pci-gateway.injection` at `WARNING` level but nothing is blocked. Use this when first deploying to measure the false-positive rate before switching to enforcement.
+
+| Env var | Default | Description |
+|---|---|---|
+| `INJECTION_BLOCK_ACTION` | `block` | Set to `log` to log findings without blocking |
+
+---
+
 ## PII Detection & Policy
 
 Every prompt is scanned before it reaches the LLM. Detected entities are either **blocked** (request rejected with `400`) or **redacted** (replaced with a placeholder token, restored in the response).
@@ -617,6 +659,10 @@ If the LLM response contains a PAN or SSN that was **not** in the original token
 | Unauthorized access | Dual-layer auth: `x-api-key` header validated before JWT; Cognito RS256 in production |
 | Arbitrary code execution via the calculator tool | AST inspection whitelists numeric literals and arithmetic operators before evaluation — `eval()` is never called on raw user input |
 | PII exfiltration through agent tool I/O | All agent inputs, tool results, and final responses pass through the same `PIIDetector → PolicyEngine → Redactor` pipeline as the inference endpoint |
+| Prompt injection via user input | `InjectionDetector` scans every user prompt and RAG question before any LLM call; `block`-severity patterns return `400` |
+| Indirect prompt injection via retrieved documents | RAG chunks are scanned after retrieval; poisoned chunks are dropped before the context window is built |
+| Tool name hallucination / unauthorised tool dispatch | `ToolValidator` enforces a static allowlist — any tool name the model hallucinates outside the set is rejected before `execute_tool` is called |
+| Adversarial content injected through tool results | `scan_tool_result()` scans every tool result; blocked results are replaced with a safe sentinel string before re-entering the model's context window |
 | Sensitive data in Terraform state | State stored in an encrypted, versioned S3 bucket with DynamoDB locking; `terraform.tfvars` is gitignored and never committed |
 
 ### Residual / accepted risk
@@ -634,7 +680,7 @@ If the LLM response contains a PAN or SSN that was **not** in the original token
 - **ML detection latency** — when the HuggingFace NER model is installed and loaded, each scan adds roughly 150–300 ms. The system falls back to regex-only if `transformers` is not installed; the latency tradeoff is the caller's choice.
 - **Regex-only for non-US formats** — the PHONE pattern matches US numbers only (`+1` prefix optional). International numbers are not detected. SSN matches the US 9-digit format; other national ID formats are out of scope.
 - **Agent streaming on Lambda** — `/v1/agent/stream` yields true SSE locally (uvicorn). Mangum buffers the full response on Lambda, so the client receives all events at once rather than incrementally. True streaming requires a persistent runtime (ECS, Lambda response streaming with a custom runtime).
-- **No prompt-injection detection** — the pipeline detects structured PII patterns; it does not detect adversarial instructions embedded in user input (e.g. "ignore previous instructions"). A separate input-classification step would be required to address this.
+- **Injection detection is regex-based** — `InjectionDetector` catches known syntactic patterns. Novel or heavily obfuscated attacks (Unicode homoglyphs, atypical whitespace, encoded payloads) may bypass the ruleset. A dedicated ML-based classifier would provide broader coverage at higher latency cost.
 
 ---
 

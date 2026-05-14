@@ -6,6 +6,7 @@ import rate_limiter
 import tenant_quota
 from detector import PIIDetector
 from fastapi import APIRouter, Depends, HTTPException
+from injection_detector import InjectionDetector
 from leakage_detector import LeakageDetector
 from model_registry import MODEL_NAMES, get_client
 from policy_engine import PolicyEngine
@@ -26,6 +27,7 @@ redactor = Redactor()
 policy = PolicyEngine()
 validator = OutputValidator()
 leakage = LeakageDetector()
+inject_detector = InjectionDetector()
 
 
 @router.get("/models")
@@ -39,7 +41,7 @@ async def inference(body: InferenceRequest, tenant: TenantConfig = Depends(requi
     """Run a prompt through the full PII-safe inference pipeline with tenant isolation.
 
     Pipeline stages (in order):
-      tenant_check → pii_detect → policy_enforce → tenant_policy →
+      tenant_check → inject_scan → pii_detect → policy_enforce → tenant_policy →
       redact → budget_check → llm_complete → output_validate →
       leakage_detect → restore → record_spend
 
@@ -62,6 +64,13 @@ async def inference(body: InferenceRequest, tenant: TenantConfig = Depends(requi
         )
 
     with _tracer.start_as_current_span("inference"):
+        with stage_span(log, "inject_scan", request_id=request_id) as meta:
+            inject_findings = inject_detector.scan(body.prompt)
+            inject_detector.log_findings(inject_findings, source="user_prompt")
+            meta["injection_findings"] = len(inject_findings)
+            if inject_detector.is_blocked(inject_findings):
+                raise HTTPException(status_code=400, detail="Request blocked: prompt injection detected")
+
         with stage_span(log, "pii_detect", request_id=request_id) as meta:
             findings = detector.scan(body.prompt)
             pii_count = len(findings)

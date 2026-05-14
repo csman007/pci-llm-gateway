@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.9.0] — 2026-05-14
+
+### Security: Prompt injection detection layer
+
+Five-category regex-based injection detector applied at every untrusted input surface.
+
+#### New module — `services/prompt-processor/injection_detector.py`
+
+`InjectionDetector` scans text for instruction-hijacking, persona attacks, system-prompt extraction, template-delimiter injection, and indirect injection markers.  Pattern severity is either `"block"` (reject/drop) or `"warn"` (log and pass through).
+
+Set `INJECTION_BLOCK_ACTION=log` to enter monitor-only mode — all findings are logged but nothing is blocked.  Useful when first deploying to measure false-positive rate before enforcing.
+
+#### New module — `services/agent/tool_validator.py`
+
+`validate_tool_name()` enforces a static allowlist (`query_audit_log`, `analyze_pii_risk`, `calculator`, `search_pci_dss`, `call_subagent`) before any tool is dispatched.  `scan_tool_result()` scans each tool result for injection patterns and replaces poisoned results with a safe sentinel string so they never reach the model's context window.
+
+#### Integration points
+
+| Surface | Action on BLOCK finding |
+|---|---|
+| User prompt (`/v1/inference`) | HTTP 400 |
+| RAG question (`/v1/rag/query`) | HTTP 400 |
+| Retrieved RAG chunks (indirect injection) | Chunk silently dropped |
+| Agent tool results | Result replaced with error sentinel |
+
+#### Tests
+
+21 new tests in `tests/test_injection.py` covering all pattern categories, `is_blocked()` behaviour, monitor mode, tool allowlist enforcement, and all four integration surfaces.
+
+---
+
 ## [0.8.0] — 2026-05-14
 
 ### Multi-tenant isolation
