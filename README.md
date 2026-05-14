@@ -1,10 +1,6 @@
 # PCI LLM Gateway
 
-[![Tests](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml) [![Coverage](https://codecov.io/gh/csman007/pci-llm-gateway/branch/master/graph/badge.svg)](https://codecov.io/gh/csman007/pci-llm-gateway) [![Security](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml/badge.svg?branch=master)](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml) ![Python](https://img.shields.io/badge/python-3.12-blue)
-
-A secure API gateway for routing LLM inference requests with PII detection, redaction, and output filtering to meet PCI DSS compliance requirements. Includes an agentic layer with Claude tool use, multi-agent orchestration, extended thinking, SSE streaming, and LLM-as-judge evaluation. Includes a RAG layer grounded in PCI DSS v4.0.1 with hybrid retrieval, deterministic grounding validation, and structured context formatting.
-
-[![Lint](https://github.com/csman007/pci-llm-gateway/actions/workflows/lint.yml/badge.svg?branch=master)](https://github.com/csman007/pci-llm-gateway/actions/workflows/lint.yml)
+[![Tests](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/csman007/pci-llm-gateway/actions/workflows/tests.yml) [![Coverage](https://codecov.io/gh/csman007/pci-llm-gateway/branch/main/graph/badge.svg)](https://codecov.io/gh/csman007/pci-llm-gateway) [![Security](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/csman007/pci-llm-gateway/actions/workflows/security.yml) [![Lint](https://github.com/csman007/pci-llm-gateway/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/csman007/pci-llm-gateway/actions/workflows/lint.yml) ![Python](https://img.shields.io/badge/python-3.12-blue)
 
 ## Architecture
 
@@ -352,6 +348,58 @@ In Postman, set the `api_key` collection variable. Use **Generate Token (dev onl
 | `OPENAI_API_KEY_SECRET_ARN` | Secrets Manager ARN for the OpenAI key |
 | `JWT_SECRET_ARN` | Secrets Manager ARN for the JWT secret |
 | `API_KEY_SECRET_ARN` | Secrets Manager ARN for the API key (`x-api-key` header) |
+
+## Multi-tenant isolation
+
+Every request is scoped to a tenant via the JWT `tenant_id` claim. Tenants are fully isolated across four layers.
+
+### Tenant model
+
+Tenant configuration is stored in DynamoDB (`pci-llm-gateway-tenants` table) and cached in Lambda memory for 60 s. Each tenant record controls:
+
+| Field | Effect |
+|---|---|
+| `allowed_models` | Whitelist of model IDs; absent = all models permitted |
+| `blocked_entity_types` | Extra PII types blocked for this tenant (e.g. `["PHONE"]`) beyond global PAN/CVV/SSN policy |
+| `monthly_budget_usd` | Hard monthly spend cap; absent = unlimited |
+| `rate_limit_inference_rpm` | Per-user inference cap override; absent = global default |
+
+To provision a tenant, write a config item to the DynamoDB table:
+```json
+{
+  "pk": "tenant#acme-corp",
+  "tenant_id": "acme-corp",
+  "allowed_models": ["claude-haiku-4-5-20251001", "claude-sonnet-4-6"],
+  "blocked_entity_types": ["PHONE"],
+  "monthly_budget_usd": 100.00
+}
+```
+
+### Isolation boundaries
+
+| Layer | Scope |
+|---|---|
+| JWT claim | `tenant_id` embedded at login (dev: request field; Cognito: `custom:tenant_id` attribute) |
+| Rate limit counters | Key: `{tenant_id}#{user_id}#{endpoint}#{bucket}` — tenants never share counters |
+| Spend counters | DynamoDB `ADD` per `spend#{tenant_id}#{YYYY-MM}` — atomic, per-tenant, cross-instance safe |
+| Structured logs | `tenant_id` in every `inference_complete` and `rag_complete` log entry |
+
+### Per-tenant policy
+
+Applied after global PII policy on every inference and RAG request:
+
+- Model not in `allowed_models` → `422`
+- Detected entity type in `blocked_entity_types` → `400` (tenant policy block)
+- Current month spend ≥ `monthly_budget_usd` → `429` with `X-Tenant-Budget-Remaining: 0.00`
+
+### Dev token with tenant
+
+```json
+POST /dev/token
+{"sub": "alice", "tenant_id": "acme-corp"}
+```
+
+---
 
 ## Concurrency & Scaling
 

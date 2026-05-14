@@ -30,16 +30,18 @@ _dynamodb = (
 )
 
 
-async def check_rate_limit(user_id: str, endpoint: str, rpm: int) -> None:
+async def check_rate_limit(user_id: str, endpoint: str, rpm: int, tenant_id: str = "default") -> None:
     """Atomically increment the request counter and raise 429 if the limit is exceeded.
 
     Uses a DynamoDB fixed-window counter: the bucket key resets every 60 seconds.
+    Counter keys are scoped to ``tenant_id`` so tenants never share counters.
     A TTL attribute ensures stale counters are cleaned up automatically.
 
     Args:
-        user_id:  JWT ``sub`` claim identifying the caller.
-        endpoint: Logical endpoint name (``"inference"``, ``"rag"``, ``"agent"``).
-        rpm:      Maximum requests allowed in the current 60-second window.
+        user_id:   JWT ``sub`` claim identifying the caller.
+        endpoint:  Logical endpoint name (``"inference"``, ``"rag"``, ``"agent"``).
+        rpm:       Maximum requests allowed in the current 60-second window.
+        tenant_id: Tenant identifier — isolates counters between tenants.
 
     Raises:
         HTTPException(429): When the counter for this window exceeds *rpm*.
@@ -51,7 +53,7 @@ async def check_rate_limit(user_id: str, endpoint: str, rpm: int) -> None:
     bucket = math.floor(now / _WINDOW_SECS)
     window_end = (bucket + 1) * _WINDOW_SECS
     retry_after = int(window_end - now) + 1
-    pk = f"{user_id}#{endpoint}#{bucket}"
+    pk = f"{tenant_id}#{user_id}#{endpoint}#{bucket}"
 
     table = _dynamodb.Table(_TABLE_NAME)
     try:
@@ -96,9 +98,10 @@ def limit(endpoint: str) -> Callable:
     rpm = _LIMITS.get(endpoint, 60)
 
     async def _dependency(request: Request) -> None:
-        """FastAPI dependency — extracts user_id from request state and checks the counter."""
+        """FastAPI dependency — extracts user_id and tenant_id from request state and checks the counter."""
         user = getattr(request.state, "user", None)
         user_id = user.get("sub", "anonymous") if isinstance(user, dict) else "anonymous"
-        await check_rate_limit(user_id, endpoint, rpm)
+        tenant_id = user.get("tenant_id", "default") if isinstance(user, dict) else "default"
+        await check_rate_limit(user_id, endpoint, rpm, tenant_id)
 
     return _dependency

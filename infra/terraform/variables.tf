@@ -176,6 +176,20 @@ variable "grounding_threshold" {
   default     = "0.82"
 }
 
+# ── Multi-tenancy ──────────────────────────────────────────────────────────
+
+variable "tenants_table" {
+  description = "DynamoDB table for tenant config and per-tenant monthly spend counters"
+  type        = string
+  default     = "pci-llm-gateway-tenants"
+}
+
+variable "tenant_cache_ttl_secs" {
+  description = "Seconds to cache tenant config in Lambda memory before re-fetching from DynamoDB"
+  type        = number
+  default     = 60
+}
+
 # ── Concurrency & rate limiting ────────────────────────────────────────────
 
 variable "lambda_reserved_concurrency" {
