@@ -17,6 +17,7 @@ markers = [
     "integration: multi-component tests that mock only external I/O",
     "contract: API endpoint contract and schema validation tests",
     "quality: retrieval quality metrics — recall@k, precision@k, grounding",
+    "eval: golden-dataset regression tests — fixture replay, no real API calls",
 ]
 [tool.coverage.run]
 relative_files = true

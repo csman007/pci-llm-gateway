@@ -41,6 +41,11 @@ _RAW_PATTERNS: list[tuple[str, str, str]] = [
     ),
     (
         "instruction_override",
+        r"forget\s+everything\s+you\s+(?:were|have\s+been)\s+(?:told|taught|given|trained)",
+        "block",
+    ),
+    (
+        "instruction_override",
         r"disregard\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?|rules?|directives?)",
         "block",
     ),
@@ -118,7 +123,7 @@ _RAW_PATTERNS: list[tuple[str, str, str]] = [
     ),
     (
         "system_prompt_extraction",
-        r"pretend\s+(?:you\s+don.t\s+have|there\s+is\s+no|you\s+have\s+no)\s+system\s+prompt",
+        r"pretend\s+(?:you\s+don.t\s+have|there\s+is\s+no|you\s+have\s+no)\s+(?:a\s+)?system\s+prompt",
         "block",
     ),
     (

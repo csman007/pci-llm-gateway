@@ -137,6 +137,8 @@ Client → Auth → PIIDetector.scan() → PolicyEngine.enforce() → Redactor.r
 
 Each service directory (`services/pii-detector`, `services/prompt-processor`, etc.) is a **flat namespace** added directly to `sys.path` — no `__init__.py` files. Imports are bare module names (`from detector import PIIDetector`, not `from services.pii_detector.detector import ...`).
 
+**Exception — subdirectories that form a package must have `__init__.py`.** `services/api-gateway/schemas/` is a package (`schemas.request`, `schemas.agent_schemas`, etc.) and has an `__init__.py`. Without it Python treats it as a namespace package; if any installed venv package also happens to be named `schemas`, the installed one wins regardless of `sys.path` ordering. Rule: any directory inside a service directory that is imported as a package (not a bare module) needs `__init__.py`.
+
 `tests/conftest.py` adds all service directories to `sys.path` and sets default env vars at test time. `pyproject.toml` declares the same paths under `[tool.pytest.ini_options] pythonpath`. In PyCharm, mark each service directory as a **Sources Root** for IDE resolution.
 
 The shared `Finding` dataclass lives in `services/pii-detector/patterns.py` to avoid a circular import between `detector.py` and `ml_model.py`.

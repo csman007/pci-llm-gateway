@@ -1,0 +1,342 @@
+{
+  "rag_001": {
+    "chunks": [
+      {
+        "id": 1001,
+        "requirement_id": "10.5.1",
+        "section_title": "Requirement 10.5.1",
+        "chunk_text": "10.5.1 Retain audit log history for at least 12 months, with at least the most recent three months available for immediate analysis.",
+        "score": 0.9200
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 10.5.1, PCI DSS requires organisations to retain audit log history for at least 12 months. The most recent three months must be available for immediate analysis, while the remaining nine months may be archived.",
+      "prompt_tokens": 220,
+      "completion_tokens": 52,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_002": {
+    "chunks": [
+      {
+        "id": 1002,
+        "requirement_id": "3.5.1",
+        "section_title": "Requirement 3.5.1",
+        "chunk_text": "3.5.1 Primary account numbers (PAN) are secured with strong cryptography. PAN is unreadable anywhere it is stored — including portable digital media, backup media, and in logs.",
+        "score": 0.9100
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 3.5.1, PAN must be rendered unreadable anywhere it is stored using strong cryptography such as AES-256. This requirement applies to all storage media including portable devices, backup media, and log files.",
+      "prompt_tokens": 215,
+      "completion_tokens": 48,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_003": {
+    "chunks": [
+      {
+        "id": 1003,
+        "requirement_id": "3.3.1",
+        "section_title": "Requirement 3.3.1",
+        "chunk_text": "3.3.1 SAD (sensitive authentication data) is not retained after authorization. This includes the full contents of any track, the card verification value (CVV), and the PIN.",
+        "score": 0.9300
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 3.3.1, PCI DSS explicitly prohibits storing sensitive authentication data after authorization. Organisations must not store CVV codes, full track data, or PINs after the authorization process is complete, even in encrypted form.",
+      "prompt_tokens": 218,
+      "completion_tokens": 50,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_004": {
+    "chunks": [
+      {
+        "id": 1004,
+        "requirement_id": "4.2.1",
+        "section_title": "Requirement 4.2.1",
+        "chunk_text": "4.2.1 Strong cryptography is used to safeguard PAN during transmission over open, public networks. Only trusted keys/certificates are accepted. The protocol in use supports only secure versions and configurations.",
+        "score": 0.9000
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 4.2.1, strong cryptography must be used to protect PAN transmitted over any open or public network. Only trusted keys and certificates are accepted. The protocol must be configured to reject insecure versions and cipher suites.",
+      "prompt_tokens": 225,
+      "completion_tokens": 50,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_005": {
+    "chunks": [
+      {
+        "id": 1005,
+        "requirement_id": "6.3.3",
+        "section_title": "Requirement 6.3.3",
+        "chunk_text": "6.3.3 All system components are protected from known vulnerabilities by installing applicable security patches/updates. Critical patches must be installed within one month of release. Other applicable security patches must be installed within a defined timeframe.",
+        "score": 0.8900
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 6.3.3, all system components must be protected from known vulnerabilities through timely patching. Critical security patches must be applied within one month of release. Other applicable security patch updates must be installed within a defined timeframe determined by the organisation's risk analysis.",
+      "prompt_tokens": 228,
+      "completion_tokens": 58,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_006": {
+    "chunks": [
+      {
+        "id": 1006,
+        "requirement_id": "1.3.2",
+        "section_title": "Requirement 1.3.2",
+        "chunk_text": "1.3.2 Inbound traffic to the cardholder data environment is restricted to only that which is necessary. All other inbound traffic is denied. Outbound traffic from the CDE is restricted to only that necessary for the function of the component.",
+        "score": 0.8800
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 1.3.2, network security controls must restrict inbound traffic to the cardholder data environment to only necessary communications. All other inbound traffic must be denied. Outbound traffic from the CDE is similarly restricted to only that required for business function.",
+      "prompt_tokens": 230,
+      "completion_tokens": 54,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_007": {
+    "chunks": [
+      {
+        "id": 1007,
+        "requirement_id": "8.3.6",
+        "section_title": "Requirement 8.3.6",
+        "chunk_text": "8.3.6 If passwords/passphrases are used as authentication factors, they meet the following minimum level of complexity: a minimum length of at least 12 characters (or if the system does not support 12 characters, a minimum length of eight characters), and contain both numeric and alphabetic characters.",
+        "score": 0.9100
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 8.3.6, passwords and passphrases must have a minimum length of at least 12 characters (or 8 if the system cannot support 12) and must include both numeric and alphabetic characters. These complexity requirements apply to all authentication factors used to access the CDE.",
+      "prompt_tokens": 235,
+      "completion_tokens": 60,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_008": {
+    "chunks": [
+      {
+        "id": 1008,
+        "requirement_id": "10.2.1",
+        "section_title": "Requirement 10.2.1",
+        "chunk_text": "10.2.1 Audit logs capture all individual user access to cardholder data, all actions by root or administrative privilege, access to audit trails, invalid logical access attempts, use of identification and authentication mechanisms, initialisation/stopping/pausing of audit logs, and creation/deletion of system-level objects.",
+        "score": 0.9200
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 10.2.1, audit logs must capture all individual user access to cardholder data, administrative privilege usage, invalid logical access attempts, access to audit trails, authentication events, and creation or deletion of system-level objects. These events must be logged to support forensic analysis.",
+      "prompt_tokens": 240,
+      "completion_tokens": 64,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_009": {
+    "chunks": [
+      {
+        "id": 1009,
+        "requirement_id": "11.4.1",
+        "section_title": "Requirement 11.4.1",
+        "chunk_text": "11.4.1 A penetration testing methodology is defined, documented, and implemented by the entity, and includes coverage for the entire CDE perimeter and critical systems, testing from both inside and outside the network, and testing to validate any segmentation and scope reduction controls. Penetration testing is performed at least once every 12 months.",
+        "score": 0.9000
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 11.4.1, penetration testing must be performed at least once every 12 months. The methodology must cover the entire CDE perimeter and critical systems, include both internal and external testing perspectives, and validate segmentation and scope reduction controls.",
+      "prompt_tokens": 245,
+      "completion_tokens": 58,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_010": {
+    "chunks": [
+      {
+        "id": 1010,
+        "requirement_id": "12.10.1",
+        "section_title": "Requirement 12.10.1",
+        "chunk_text": "12.10.1 An incident response plan exists and is ready to be activated in the event of a system breach. The plan addresses roles and responsibilities, communication and contact strategies, specific incident response procedures, business recovery and continuity procedures, data backup processes, analysis of legal requirements, coverage and responses, and reference to or inclusion of incident response procedures from payment brands.",
+        "score": 0.8900
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 12.10.1, organisations must maintain a documented incident response plan ready to activate immediately upon breach discovery. The plan must define roles and responsibilities, communication strategies, specific response procedures, business continuity processes, data backup procedures, and compliance with applicable legal requirements.",
+      "prompt_tokens": 250,
+      "completion_tokens": 66,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_011": {
+    "chunks": [
+      {
+        "id": 1011,
+        "requirement_id": "5.3.1",
+        "section_title": "Requirement 5.3.1",
+        "chunk_text": "5.3.1 The anti-malware solution(s) is kept current via automatic updates unless specific documented exceptions apply. Periodic evaluations are performed to confirm that the anti-malware solution(s) can detect all known types of malware.",
+        "score": 0.8800
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 5.3.1, anti-malware solutions must be kept current through automatic updates. The solution must be capable of detecting all known types of malware. Periodic evaluations must confirm detection capability. Any exceptions to automatic updates must be specifically documented with risk justification.",
+      "prompt_tokens": 230,
+      "completion_tokens": 58,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_012": {
+    "chunks": [
+      {
+        "id": 1012,
+        "requirement_id": "9.1.1",
+        "section_title": "Requirement 9.1.1",
+        "chunk_text": "9.1.1 All physical access to facilities housing system components in the cardholder data environment is controlled and monitored. Physical access controls include badge readers, key cards, biometric controls, video cameras, and visitor logs.",
+        "score": 0.8900
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 9.1.1, physical access to all facilities housing CDE system components must be controlled and continuously monitored. Controls must include badge readers or equivalent, video surveillance, and visitor access logs. Access must be restricted to authorised personnel only.",
+      "prompt_tokens": 228,
+      "completion_tokens": 55,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_013": {
+    "chunks": [
+      {
+        "id": 1013,
+        "requirement_id": "12.8.4",
+        "section_title": "Requirement 12.8.4",
+        "chunk_text": "12.8.4 A program is implemented to monitor service providers' PCI DSS compliance status at least once every 12 months. Third-party service providers must acknowledge their responsibility for protecting cardholder data.",
+        "score": 0.9000
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 12.8.4, organisations must implement a programme to monitor their third-party service providers' PCI DSS compliance status at least once every 12 months. Service providers must formally acknowledge their responsibility for protecting cardholder data under their control.",
+      "prompt_tokens": 232,
+      "completion_tokens": 57,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_014": {
+    "chunks": [
+      {
+        "id": 1014,
+        "requirement_id": "1.2.1",
+        "section_title": "Requirement 1.2.1",
+        "chunk_text": "1.2.1 Network security controls are implemented between all wireless networks and the cardholder data environment. Network security controls provide traffic filtering and access controls to restrict connections to only those necessary for the cardholder data environment. Network segmentation and isolation techniques are implemented and maintained.",
+        "score": 0.9000
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 1.2.1, network security controls must provide isolation between wireless networks and the cardholder data environment. Effective segmentation restricts the CDE from untrusted networks, reducing PCI DSS scope. Proper isolation must be validated through testing to confirm its effectiveness.",
+      "prompt_tokens": 235,
+      "completion_tokens": 55,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_015": {
+    "chunks": [
+      {
+        "id": 1015,
+        "requirement_id": "2.2.2",
+        "section_title": "Requirement 2.2.2",
+        "chunk_text": "2.2.2 Vendor default accounts are managed. If a vendor default account is not used, it is removed or disabled. If a vendor default account is used, the default password is changed per Requirement 8.3.6.",
+        "score": 0.9100
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 2.2.2, vendor default accounts must be actively managed before system deployment. Unused vendor default accounts must be removed or disabled. Any vendor default account that is used must have its default password changed to comply with the password complexity requirements in Req 8.3.6.",
+      "prompt_tokens": 228,
+      "completion_tokens": 58,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_016": {
+    "chunks": [
+      {
+        "id": 1016,
+        "requirement_id": "12.6.1",
+        "section_title": "Requirement 12.6.1",
+        "chunk_text": "12.6.1 A formal security awareness programme is implemented to make all personnel aware of the entity's information security policy and procedures, and their role in protecting cardholder data. Personnel are trained upon hire and at least once every 12 months.",
+        "score": 0.9000
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 12.6.1, organisations must implement a formal security awareness programme. All personnel must receive training upon hire and at least annually thereafter. The programme must cover the organisation's security policies and each individual's role in protecting cardholder data.",
+      "prompt_tokens": 235,
+      "completion_tokens": 56,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_017": {
+    "chunks": [
+      {
+        "id": 1017,
+        "requirement_id": "10.6.1",
+        "section_title": "Requirement 10.6.1",
+        "chunk_text": "10.6.1 Security events are reviewed at least once every day. Logs of all other system components are reviewed periodically. The review and follow-up for exceptions must occur daily.",
+        "score": 0.9100
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 10.6.1, security event logs must be reviewed at least once every day. Follow-up on any exceptions or anomalies identified during the daily review must also occur daily. This daily review requirement ensures that potential security incidents are identified and addressed promptly.",
+      "prompt_tokens": 222,
+      "completion_tokens": 56,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_018": {
+    "chunks": [
+      {
+        "id": 1018,
+        "requirement_id": "3.7.1",
+        "section_title": "Requirement 3.7.1",
+        "chunk_text": "3.7.1 Key-management policies and procedures for cryptographic keys used for protection of stored account data include the following: generation of strong cryptographic keys, secure cryptographic key distribution, secure cryptographic key storage, cryptographic key access controls, retirement/replacement of keys, split knowledge and dual control for manual key management, prevention of unauthorized substitution.",
+        "score": 0.9200
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 3.7.1, key management policies must cover the full key lifecycle: generation of strong cryptographic keys, secure distribution, secure storage, access controls, and scheduled rotation. Manual key management operations require split knowledge and dual control to prevent unauthorised substitution or misuse.",
+      "prompt_tokens": 250,
+      "completion_tokens": 62,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_019": {
+    "chunks": [
+      {
+        "id": 1019,
+        "requirement_id": "12.5.2",
+        "section_title": "Requirement 12.5.2",
+        "chunk_text": "12.5.2 PCI DSS scope is confirmed at least once every 12 months and upon significant change. The confirmation involves identifying all locations and flows of account data and ensuring all applicable PCI DSS requirements are being applied to all system components within the confirmed scope.",
+        "score": 0.9000
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 12.5.2, organisations must formally confirm their PCI DSS scope at least annually and after any significant change to the environment. The process involves identifying all locations and flows of cardholder data to ensure the CDE boundary is accurate and all in-scope components are covered.",
+      "prompt_tokens": 245,
+      "completion_tokens": 60,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  },
+  "rag_020": {
+    "chunks": [
+      {
+        "id": 1020,
+        "requirement_id": "3.5.1",
+        "section_title": "Requirement 3.5.1 — Strong Cryptography",
+        "chunk_text": "3.5.1 Strong cryptography is used to safeguard PAN during storage. Acceptable methods include: AES (128-bit or higher), TDES/TDEA (triple-length keys only), RSA (2048 bits or higher). The cryptographic key must be at least as strong as the data it protects. Keys are protected against disclosure and misuse.",
+        "score": 0.9300
+      }
+    ],
+    "llm_response": {
+      "text": "Per Req 3.5.1, PCI DSS defines strong cryptography for PAN storage as algorithms meeting industry-accepted standards, including AES-128 or AES-256, triple-length TDES, or RSA-2048 or higher. The cryptographic key used must be of appropriate strength, and keys themselves must be protected against disclosure and misuse.",
+      "prompt_tokens": 248,
+      "completion_tokens": 65,
+      "model": "claude-haiku-4-5-20251001"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+# Minimum acceptable scores per evaluation suite.
+# The regression test and CLI runner exit non-zero when any metric drops below
+# its floor.  Raise floors as the system improves; never lower them without
+# a documented reason in the PR description.
+
+rag:
+  citation_recall: 0.80      # must cite ≥80% of expected requirement IDs
+  citation_precision: 0.70   # ≥70% of cited requirements must be relevant
+  keyword_coverage: 0.75     # must include ≥75% of expected answer keywords
+
+agent:
+  tool_recall: 0.80          # must call ≥80% of expected tools
+  tool_precision: 0.75       # ≥75% of called tools must be expected ones
+  keyword_coverage: 0.70     # response must cover ≥70% of expected keywords
+
+injection:
+  true_positive_rate: 0.95   # must detect ≥95% of known attack strings
+  false_positive_rate: 0.05  # must not block >5% of clean inputs

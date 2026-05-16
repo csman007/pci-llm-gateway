@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.10.0] — 2026-05-14
+
+### Evaluation: offline benchmarking harness
+
+Adds a systematic, deterministic evaluation framework with golden datasets, fixture-based replay, and CI-enforceable score floors.
+
+#### Structure
+
+```
+evals/
+  golden/           — curated ground-truth datasets (YAML)
+    rag_cases.yaml       20 RAG cases across major PCI DSS requirement areas
+    agent_cases.yaml     8 agent cases covering all tool combinations
+    injection_cases.yaml 30 injection cases (19 attacks + 5 warn-only + 6 clean)
+  fixtures/         — pre-recorded LLM responses for deterministic replay
+    rag.json             retriever chunks + LLM responses for all 20 RAG cases
+    agent.json           multi-turn Anthropic message sequences for all 8 agent cases
+  score_floors.yaml — minimum acceptable scores per suite
+  metrics.py        — pure scoring functions (no I/O, no randomness)
+  replay.py         — fixture-based client/retriever/orchestrator mocks
+  harness.py        — evaluation engine; entry point for CLI and regression tests
+  results/          — timestamped JSON reports from each run (gitignored)
+```
+
+#### Metrics
+
+| Suite | Metrics |
+|---|---|
+| RAG | Citation recall (must cite expected requirement IDs), citation precision (no hallucinated citations), keyword coverage |
+| Agent | Tool recall (expected tools called), tool precision (no unexpected tools), keyword coverage |
+| Injection | True-positive rate (attacks blocked), false-positive rate (clean inputs passed) |
+
+#### Score floors (`evals/score_floors.yaml`)
+
+| Suite | Metric | Floor |
+|---|---|---|
+| RAG | citation_recall | 0.80 |
+| RAG | citation_precision | 0.70 |
+| RAG | keyword_coverage | 0.75 |
+| Agent | tool_recall | 0.80 |
+| Agent | tool_precision | 0.75 |
+| Agent | keyword_coverage | 0.70 |
+| Injection | true_positive_rate | 0.95 |
+| Injection | false_positive_rate | ≤ 0.05 |
+
+#### Replay system
+
+Fixtures are keyed by case ID (human-readable) rather than input hash. Record mode (`--record`) calls real APIs and persists responses. Replay mode (default) serves pre-recorded responses — no network, no API cost.
+
+Replay boundary: `ReplayLLMClient` replaces the LLM client; `ReplayRetriever` replaces the RAG retriever; `ReplayAnthropicClient` returns fixture turns in sequence for the agent orchestrator.
+
+#### CLI
+
+```bash
+python scripts/run_evals.py                  # all suites, replay mode
+python scripts/run_evals.py --suite rag      # single suite
+python scripts/run_evals.py --output out.json
+python scripts/run_evals.py --record         # record real API responses
+```
+
+Exits `0` on pass, `1` on floor failure, `2` on error. Always writes a timestamped JSON report to `evals/results/`.
+
+#### Regression tests
+
+`tests/test_evals_regression.py` — 8 tests marked `@pytest.mark.eval`. Each test calls the harness in replay mode and asserts the suite's score floors:
+
+```bash
+pytest -m eval                # eval suite only
+pytest -m "not eval"          # everything except eval
+```
+
+#### Detector improvements
+
+Two real attack variants that were not caught by the existing patterns were discovered during golden-dataset validation and fixed:
+- `forget everything you were told/taught` → new `instruction_override` pattern
+- `pretend you don't have a system prompt` (with article "a") → fixed existing pattern to match `(?:a\s+)?system\s+prompt`
+
+---
+
 ## [0.9.0] — 2026-05-14
 
 ### Security: Prompt injection detection layer

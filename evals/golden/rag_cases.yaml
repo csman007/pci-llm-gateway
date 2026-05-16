@@ -1,0 +1,218 @@
+# RAG golden dataset — 20 cases covering major PCI DSS v4.0.1 requirement areas.
+#
+# expected_requirement_ids: the requirement IDs the answer MUST cite.
+# expected_keywords:        substrings that must appear in a correct answer.
+# quality_criteria:         human-readable description of what a correct answer looks like.
+
+- id: rag_001
+  question: "How long must audit logs be retained?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "10.5.1"
+  expected_keywords:
+    - "12 months"
+    - "retain"
+  quality_criteria: "Must cite Req 10.5.1 and specify 12-month retention with 3 months immediately available"
+
+- id: rag_002
+  question: "How must primary account numbers be protected when stored?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "3.5.1"
+  expected_keywords:
+    - "unreadable"
+    - "strong cryptography"
+  quality_criteria: "Must cite Req 3.5.1 and specify that PAN must be rendered unreadable using strong cryptography"
+
+- id: rag_003
+  question: "Is it permitted to store CVV codes after payment authorisation?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "3.3.1"
+  expected_keywords:
+    - "not store"
+    - "after"
+    - "authorization"
+  quality_criteria: "Must cite Req 3.3.1 and state that sensitive authentication data must not be stored after authorisation"
+
+- id: rag_004
+  question: "What cryptographic protocols are required for data in transit over open networks?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "4.2.1"
+  expected_keywords:
+    - "strong cryptography"
+    - "open"
+    - "public network"
+  quality_criteria: "Must cite Req 4.2.1 and require strong cryptography and security protocols for open/public networks"
+
+- id: rag_005
+  question: "How frequently must security vulnerabilities in software be addressed?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "6.3.3"
+  expected_keywords:
+    - "security patch"
+    - "vulnerabilit"
+  quality_criteria: "Must cite Req 6.3.3 and describe patching timelines for critical vs non-critical vulnerabilities"
+
+- id: rag_006
+  question: "What traffic must firewalls and network security controls restrict?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "1.3.2"
+  expected_keywords:
+    - "inbound"
+    - "traffic"
+    - "cardholder"
+  quality_criteria: "Must cite a Req 1.x and describe inbound/outbound traffic restrictions for the CDE"
+
+- id: rag_007
+  question: "What are the minimum password and passphrase requirements in PCI DSS?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "8.3.6"
+  expected_keywords:
+    - "character"
+    - "complexity"
+  quality_criteria: "Must cite Req 8.3.6 and specify minimum length and complexity requirements"
+
+- id: rag_008
+  question: "What events must be captured in audit logs?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "10.2.1"
+  expected_keywords:
+    - "individual user"
+    - "log"
+    - "event"
+  quality_criteria: "Must cite Req 10.2.1 and list the required event types (logins, privilege escalation, etc.)"
+
+- id: rag_009
+  question: "How often must penetration testing be performed?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "11.4.1"
+  expected_keywords:
+    - "penetration test"
+    - "12 months"
+  quality_criteria: "Must cite Req 11.4.1 and specify at least annual penetration testing"
+
+- id: rag_010
+  question: "What must an incident response plan include?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "12.10.1"
+  expected_keywords:
+    - "incident response"
+    - "plan"
+  quality_criteria: "Must cite Req 12.10.1 and describe required components of an incident response plan"
+
+- id: rag_011
+  question: "What anti-malware controls are required under PCI DSS?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "5.3.1"
+  expected_keywords:
+    - "malware"
+    - "anti-malware"
+  quality_criteria: "Must cite Req 5.x and describe anti-malware scanning, update, and monitoring requirements"
+
+- id: rag_012
+  question: "What physical access controls are required for the cardholder data environment?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "9.1.1"
+  expected_keywords:
+    - "physical"
+    - "access"
+    - "cardholder"
+  quality_criteria: "Must cite Req 9.x and describe physical access controls and monitoring requirements"
+
+- id: rag_013
+  question: "What oversight is required over third-party service providers that handle cardholder data?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "12.8.4"
+  expected_keywords:
+    - "service provider"
+    - "third-party"
+    - "monitor"
+  quality_criteria: "Must cite Req 12.8.x and describe monitoring of service providers' PCI DSS compliance status"
+
+- id: rag_014
+  question: "What network segmentation requirements apply to the cardholder data environment?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "1.2.1"
+  expected_keywords:
+    - "segment"
+    - "isolation"
+    - "cardholder data environment"
+  quality_criteria: "Must cite Req 1.x and explain CDE segmentation to reduce scope"
+
+- id: rag_015
+  question: "Must vendor default passwords and security parameters be changed before deployment?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "2.2.2"
+  expected_keywords:
+    - "default"
+    - "password"
+    - "change"
+  quality_criteria: "Must cite Req 2.2.x and state that vendor defaults must be changed or disabled before system deployment"
+
+- id: rag_016
+  question: "What security awareness training is required for personnel with access to cardholder data?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "12.6.1"
+  expected_keywords:
+    - "security awareness"
+    - "training"
+    - "annual"
+  quality_criteria: "Must cite Req 12.6.1 and describe frequency and content requirements for security awareness training"
+
+- id: rag_017
+  question: "How often must audit logs be reviewed?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "10.6.1"
+  expected_keywords:
+    - "review"
+    - "log"
+    - "daily"
+  quality_criteria: "Must cite Req 10.6.1 and state that security event logs must be reviewed at least daily"
+
+- id: rag_018
+  question: "What are the key management requirements for cryptographic keys used to protect PAN?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "3.7.1"
+  expected_keywords:
+    - "key management"
+    - "cryptographic key"
+    - "rotation"
+  quality_criteria: "Must cite Req 3.7.x and describe key generation, distribution, storage, and rotation requirements"
+
+- id: rag_019
+  question: "How must an organisation determine the scope of its cardholder data environment?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "12.5.2"
+  expected_keywords:
+    - "scope"
+    - "cardholder data"
+    - "confirm"
+  quality_criteria: "Must cite Req 12.5.2 and describe the annual scope confirmation and documentation process"
+
+- id: rag_020
+  question: "What does PCI DSS define as strong cryptography for protecting stored account data?"
+  model: claude-haiku-4-5-20251001
+  expected_requirement_ids:
+    - "3.5.1"
+  expected_keywords:
+    - "strong cryptography"
+    - "AES"
+    - "key"
+  quality_criteria: "Must reference strong cryptography definition and approved algorithms (e.g. AES-256) for PAN storage"
