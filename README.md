@@ -241,6 +241,78 @@ pytest --cov=services --cov-report=term-missing --cov-report=html
 pytest tests/test_redaction.py::test_pan_detected
 ```
 
+**Run eval regression suite only:**
+
+```bash
+pytest -m eval
+```
+
+**Run everything except evals:**
+
+```bash
+pytest -m "not eval"
+```
+
+## Offline Evaluation
+
+The gateway ships a systematic evaluation harness for measuring and regression-testing output quality — independent of the runtime LLM-as-judge score.
+
+### Structure
+
+```
+evals/
+  golden/
+    rag_cases.yaml        20 RAG cases covering major PCI DSS requirement areas
+    agent_cases.yaml      8 agent cases covering all tool combinations
+    injection_cases.yaml  30 injection cases (attacks + warn-only + clean)
+  fixtures/
+    rag.json              pre-recorded retriever chunks + LLM responses
+    agent.json            pre-recorded multi-turn Anthropic message sequences
+  score_floors.yaml       minimum acceptable score per metric
+  metrics.py              pure scoring functions (no I/O, no LLM calls)
+  replay.py               fixture-based LLM client, retriever, and orchestrator mocks
+  harness.py              evaluation engine
+  results/                timestamped JSON reports (gitignored)
+```
+
+### Running evals
+
+```bash
+python scripts/run_evals.py                  # all suites, fixture replay (no API cost)
+python scripts/run_evals.py --suite rag      # single suite
+python scripts/run_evals.py --suite agent
+python scripts/run_evals.py --suite injection
+python scripts/run_evals.py --output report.json
+python scripts/run_evals.py --record         # call real APIs and save new fixtures
+```
+
+Exits `0` when all suites pass their score floors, `1` on a floor failure. Always writes a timestamped JSON report to `evals/results/`.
+
+### Score floors
+
+| Suite | Metric | Floor | Direction |
+|---|---|---|---|
+| RAG | `citation_recall` | 0.80 | ≥ (higher is better) |
+| RAG | `citation_precision` | 0.70 | ≥ |
+| RAG | `keyword_coverage` | 0.75 | ≥ |
+| Agent | `tool_recall` | 0.80 | ≥ |
+| Agent | `tool_precision` | 0.75 | ≥ |
+| Agent | `keyword_coverage` | 0.70 | ≥ |
+| Injection | `true_positive_rate` | 0.95 | ≥ |
+| Injection | `false_positive_rate` | 0.05 | ≤ (lower is better) |
+
+### How replay works
+
+Fixtures are keyed by case ID and stored as JSON. **Replay mode** (default) serves pre-recorded responses — no network calls, no API cost, fully deterministic. **Record mode** (`--record`) calls the real APIs and persists responses to the fixture files.
+
+Replay boundary sits at the LLM client and retriever interfaces: `ReplayLLMClient`, `ReplayRetriever`, and `ReplayAnthropicClient` replace their real counterparts without touching any pipeline logic above them.
+
+When retrieval logic or prompts change, regenerate fixtures with `--record` and commit the updated fixture files.
+
+### Regression gate
+
+`tests/test_evals_regression.py` runs the full harness in replay mode and asserts every metric against its floor. Integrated into `pytest -m eval` — run alongside unit and contract tests in CI to catch quality regressions before merge.
+
 ## Deployment
 
 ![Cost breakdown](architecture/aws-cost-breakdown.png)

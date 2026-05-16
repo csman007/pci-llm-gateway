@@ -1,6 +1,6 @@
 """Tests for /auth/login and /auth/change-password routes."""
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ClientError
