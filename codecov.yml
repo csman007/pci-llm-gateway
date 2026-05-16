@@ -11,6 +11,16 @@ coverage:
       default:
         target: 75%           # new/changed lines in a PR must be ≥75% covered
         threshold: 5%
+# Add this:
+flags:
+  unittests:
+    paths:
+      - services/
+
+# Badge threshold
+badge:
+  coverage:
+    range: 80..100   # green at 80%+, yellow below, red below 60%
 
 ignore:
   - "tests/**"

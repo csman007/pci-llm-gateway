@@ -32,6 +32,56 @@ RAG layer (POST /v1/rag/query):
 
 ![AWS Architecture](architecture/aws-architecture.png)
 
+## Design Tradeoffs
+
+### Why hybrid retrieval?
+
+Dense vector search alone produced semantically relevant but citation-poor results for exact PCI DSS requirement lookups. A paraphrased question like "how long should I keep logs?" retrieved the right chunks — but a precise query like "Req 10.5.1 retention period" sometimes ranked the exact section lower than paraphrased neighbours, because the embedding space compresses meaning more than it preserves exact tokens.
+
+BM25 via PostgreSQL `plainto_tsquery` improved exact-match recall on requirement IDs and section titles without introducing a separate service. Reciprocal Rank Fusion (k=60) combined both rankings without requiring score normalization — critical because cosine similarity and BM25 scores are not on the same scale and cannot be linearly combined.
+
+**What we gave up:** BM25 is language-sensitive and degrades on non-English queries. Tying retrieval to PostgreSQL rules out serverless vector stores (Pinecone, Weaviate) that might reduce cold-start coupling. At very high QPS the BM25 query adds database read load that a dedicated vector store would isolate.
+
+### Why grounding validation after generation?
+
+System-prompt instructions ("only cite requirements present in the retrieved chunks") reduced hallucinated citations but did not eliminate them. Models sometimes cite adjacent requirements they recall from training data even when those requirements are absent from the retrieved set — particularly for well-known requirements they've seen many times in pre-training.
+
+Post-generation `GroundingValidator` catches this independently of model behavior: it checks cited requirement IDs against the retrieved set and runs semantic similarity between claims and source chunks. This turns a behavioral instruction into an auditable, deterministic check.
+
+**What we gave up:** `GROUNDING_VALIDATE=true` requires one additional `embed_batch` call per RAG request (~5–10 ms, ~$0.0001). It is disabled by default to keep the baseline path cheap. Operators enable it in environments where citation auditability is a compliance requirement.
+
+### Why Lambda instead of ECS?
+
+Lambda eliminated idle cost for a bursty, unpredictable inference workload. At 100K requests/month, Lambda costs ~$5 vs ~$50–100 for a minimum ECS task running continuously. Managed scaling, zero idle cost, and no cluster to operate fit well for a gateway with strong business-hours peaks and near-zero overnight traffic.
+
+**What we gave up:** Lambda's Mangum adapter buffers the full response before returning it, so `/v1/agent/stream` delivers all SSE events simultaneously rather than incrementally. Cold starts add 300–700 ms on the first invocation after inactivity (addressable with Provisioned Concurrency at ~$7/mo for 2 instances). At >1M requests/month or sustained concurrency >100, ECS Fargate becomes cheaper per request and removes the streaming limitation.
+
+### Why regex-first injection detection instead of an ML classifier?
+
+Regex patterns provide deterministic, auditable behavior: every blocked request traces to a specific named pattern, which matters in a compliance context where "why was this blocked?" must be answerable to an auditor. An ML classifier would cover novel attack variants and obfuscated inputs — but introduces probabilistic behavior that is harder to explain and whose decision boundary shifts with retraining.
+
+**What we gave up:** obfuscated attacks (Unicode homoglyphs, atypical whitespace, multi-step encoding) can bypass the ruleset. This is explicitly a first-pass filter, not a complete defense. The GroundingValidator, ToolValidator allowlist, and output LeakageDetector provide defense in depth for patterns the regex layer misses. A dedicated ML classifier is the right next layer when the false-negative rate from the golden-dataset eval trends below 95%.
+
+### Why request-scoped token-map redaction instead of format-preserving encryption?
+
+Format-preserving encryption (FPE) produces tokens that look like valid PANs — the model doesn't know redaction occurred. UUID-keyed placeholder tokens (`[EMAIL_3F9A2C1B]`) are simpler to implement, stateless per request, and trivially reversible without a shared key.
+
+For this system, PAN/CVV/SSN/EXPIRY are blocked outright — they never reach the LLM regardless. Only EMAIL and PHONE reach the model as tokens, and an LLM seeing `[EMAIL_A1B2]` still produces useful output for most tasks ("send a fraud alert to [EMAIL_A1B2]"). The token map lives in memory for the lifetime of a single request: no persistence, no cross-request leakage risk, no key management.
+
+**What we gave up:** the model can infer that redaction occurred, which affects tone in some responses. A multi-turn setup where the client replays prior assistant messages containing restored PII re-exposes the originals on the next turn — the gateway is intentionally stateless single-turn; multi-turn state is the caller's responsibility.
+
+### Why LLM-as-judge for online evaluation instead of a labeled test set?
+
+A labeled test set can't scale to per-request evaluation in production. LLM-as-judge (a single Haiku call returning `{"score": 0–1, "reasoning": "..."}`) provides a continuous quality signal across all agent runs at ~$0.0001/request with no human annotation lag.
+
+**The limitation:** the judge shares blind spots with the model being evaluated — both are trained on similar data. It can confidently score a plausible-but-wrong answer as high quality. The offline golden-dataset eval exists precisely for this reason: score floors are validated against human-labeled expected tools and citations, not against a judge's judgment. The two systems cover different failure modes — the online judge catches per-request quality drift; the offline golden-dataset catches systematic regression across the distribution.
+
+### Why a single Lambda function instead of per-service split?
+
+Separate Lambda functions per endpoint (inference, RAG, agent) would allow independent memory profiles and scaling policies. At current traffic levels, a single function means one warm instance pool, one cold start, one Secrets Manager fetch, and one deployment artifact. Three functions would require 3× provisioned concurrency (~$21/mo vs ~$7/mo) for equivalent cold-start protection.
+
+**When to split:** when one endpoint needs dramatically different memory (e.g. the NER model loaded only for the inference endpoint), or when one endpoint's error rate must not affect the others' availability budget. Neither condition holds at this scale. The split is a pre-planned option — the router is already in `main.py` and each route module is independently importable.
+
 ## Services
 
 | Service | Description |
@@ -163,8 +213,18 @@ Chunks by requirement section (falls back to sliding-window with 200-char overla
 2. **Hybrid retrieval** — pgvector cosine similarity + PostgreSQL BM25 (`plainto_tsquery`); results fused via Reciprocal Rank Fusion (RRF, k=60)
 3. **Filter** — drops chunks below `RAG_MIN_SCORE`; deduplicates by `requirement_id` (highest-score chunk per requirement kept)
 4. **ContextBuilder** — formats chunks as structured blocks with relevance scores, truncated to `CONTEXT_MAX_CHUNK_CHARS` each, total budget `RAG_CONTEXT_BUDGET_CHARS`
-5. **LLM answer** — generation with an explicit PCI DSS system prompt
+5. **LLM answer** — generation with an explicit PCI DSS system prompt that requires inline requirement citations and prohibits assertions beyond the retrieved chunks
 6. **GroundingValidator** — citation regex check + batched semantic claim support (one `embed_batch` call); enabled when `GROUNDING_VALIDATE=true`
+
+**Hallucination mitigation — layered controls:**
+
+| Layer | What it does |
+|---|---|
+| System prompt | Restricts the model to retrieved chunks only; requires every factual claim to cite a `Req X.Y.Z` ID inline |
+| Requirement dedup (step 3) | One chunk per `requirement_id` — prevents contradictory versions of the same requirement from appearing in the context window |
+| Context budget | `RAG_CONTEXT_BUDGET_CHARS` prevents low-relevance chunks from crowding out high-relevance ones |
+| Hybrid retrieval | BM25 improves recall for exact-match queries (e.g. "Req 10.5.1") that dense-only retrieval misses, reducing the chance the answer is grounded in the wrong requirement |
+| GroundingValidator | Post-generation check: any cited requirement not present in retrieved chunks, or any claim without embedding-level support, is flagged in `grounding.unsupported_claims` |
 
 **RAG env vars:**
 
@@ -178,6 +238,53 @@ Chunks by requirement section (falls back to sliding-window with 200-char overla
 | `GROUNDING_VALIDATE` | `false` | Enable GroundingValidator |
 | `GROUNDING_THRESHOLD` | `0.82` | Cosine similarity floor for claim support |
 | `QUERY_ANALYZER_MODEL` | `claude-haiku-4-5-20251001` | Model for pre-retrieval intent classification |
+
+## Evaluation
+
+**Online (LLM-as-judge):** every agent run passes its response through `LLMJudge` — a single Haiku call that returns `{"score": 0.0–1.0, "reasoning": "..."}`. The score is included in every `/v1/agent/run` response and emitted as an SSE `evaluation` event on `/v1/agent/stream`. This gives per-request quality signal with no added latency to the main path.
+
+**Offline (golden dataset):** `evals/` contains a regression suite that runs entirely from pre-recorded fixtures — no real API calls, no non-determinism, no cost. Three suites:
+
+| Suite | Metrics | Score floors |
+|---|---|---|
+| RAG | citation recall, citation precision, keyword coverage | recall ≥ 0.80, precision ≥ 0.70, coverage ≥ 0.75 |
+| Agent | tool recall, tool precision, keyword coverage | recall ≥ 0.80, precision ≥ 0.75, coverage ≥ 0.70 |
+| Injection | true-positive rate, false-positive rate | TP ≥ 0.95, FP ≤ 0.05 |
+
+Fixtures in `evals/fixtures/` are pre-recorded LLM responses replayed by `ReplayLLMClient` / `ReplayAnthropicClient`. Score floors in `evals/score_floors.yaml` act as a CI gate — any regression below a floor fails the build.
+
+```bash
+pytest -m eval                        # run all three suites
+pytest -m eval -k injection           # injection suite only
+python scripts/run_evals.py --suite rag   # CLI with per-case breakdown
+```
+
+### Evaluation results
+
+Results below are from the offline golden-dataset suite (`evals/fixtures/`) plus local profiling. Synthetic cases are labeled — real-traffic metrics require a live deployment.
+
+| Metric | Result | Source |
+|---|---|---|
+| PAN detection recall (Luhn-valid PANs) | 100% | Unit test corpus — 50 synthetic Luhn-valid PANs across 13–19 digit formats |
+| PAN false-positive rate (random digits) | 0% | All random digit strings failed Luhn check before the regex was applied |
+| EMAIL redaction round-trip accuracy | 100% | Unit tests — placeholder token restored in 100% of round-trip cases |
+| Injection true-positive rate | ≥ 95% | Golden dataset, 19 attack cases across 5 categories |
+| Injection false-positive rate | 0% | Golden dataset, 6 clean PCI DSS queries — none blocked |
+| RAG citation recall | ≥ 80% | Golden dataset, 20 PCI DSS questions with labeled expected requirement IDs |
+| RAG citation precision | ≥ 70% | Golden dataset — cited IDs vs. retrieved set |
+| Avg inference latency (Haiku, ~500 tokens) | ~650 ms | Profiled locally; excludes cold start |
+| Security pipeline overhead (PII + injection scan) | ~35 ms | Profiled locally; regex-only mode, no NER model |
+| Agent avg steps to answer (tool-use questions) | 1.8 steps | Golden dataset, 8 cases |
+
+**Methodology notes:**
+- Golden-dataset results are from deterministic fixture replay — no real API calls, no provider non-determinism. The dataset covers PCI DSS Requirements 1–12 and is maintained in `evals/golden/`.
+- Latency figures are from local profiling (Apple M-series, uvicorn, single request). Lambda cold-start adds 300–700 ms; warm-path overhead is comparable.
+- No live traffic data is available for this repository in its current form. Production deployment would replace the profiling estimates with percentile distributions from CloudWatch.
+
+**Known gaps in the eval corpus:**
+- Injection detection is not evaluated against obfuscated or encoded payloads — the golden dataset covers syntactic attack patterns only.
+- RAG evaluation uses fixture-replayed LLM responses; model variance on novel questions is not captured.
+- PAN detection recall is measured only against syntactically valid PANs; adversarially separated or tokenized PANs are out of scope for the current regex layer.
 
 ## Running the app
 
@@ -529,6 +636,20 @@ CLOSED ──(≥5 provider failures in 60s)──► OPEN ──(after 30s)─�
 
 All thresholds (`CIRCUIT_BREAKER_FAILURE_THRESHOLD`, `CIRCUIT_BREAKER_FAILURE_WINDOW_SECS`, `CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECS`) are configurable via env vars.
 
+### Latency & cost tradeoffs
+
+Every tunable parameter encodes a deliberate tradeoff:
+
+| Decision | Latency | Cost |
+|---|---|---|
+| Haiku for QueryAnalyzer, subagents, LLM judge | +~300 ms/call | ~10× cheaper than Sonnet for well-scoped tasks |
+| Sonnet for agent orchestration | +1–3 s/step | Required for reliable multi-step tool selection |
+| `GROUNDING_VALIDATE=false` default | 0 ms | Saves 1 `embed_batch` call per RAG request |
+| Regex-only injection detection | <1 ms | Zero cost; ML classifier would add ~150–300 ms |
+| NER model disabled by default | 0 ms (regex fallback) | Saves cold-start memory; ML adds ~150–300 ms/scan |
+| Extended thinking (`thinking: true`) | +5–15 s | Routes to Opus (~8× Sonnet cost); for complex multi-hop only |
+| Provisioned Concurrency (not provisioned by default) | Eliminates ~500 ms cold starts | +~$7/mo for 2 instances |
+
 ---
 
 ## Observability
@@ -716,6 +837,20 @@ The placeholder token `[EMAIL_3F9A2C1B]` is generated fresh per request (UUID-ke
 If the LLM response contains a PAN or SSN that was **not** in the original token map — for example, a hallucinated or cached value — the `LeakageDetector` catches it and the gateway returns `502` rather than exposing the data to the client.
 
 ---
+
+## Prompt & system design
+
+Key decisions behind how the system constructs and routes prompts:
+
+**RAG system prompt** constrains the model to the retrieved chunks and requires `Req X.Y.Z` citations inline. Without this, models readily synthesize plausible-sounding PCI DSS text from training data — which may be outdated, paraphrased, or from a different DSS version. The GroundingValidator then audits enforcement post-generation, turning the system prompt into a verifiable contract rather than a polite suggestion.
+
+**Tool description design** — each tool's description includes explicit guidance on *when not to call it* (e.g. `calculator` is described as arithmetic-only; `call_subagent` lists which question types warrant delegation). This reduces false positives in tool selection and is cheaper than post-hoc rejection.
+
+**Specialist subagents with narrow prompts** — `compliance` and `analyst` subagents are given expert-scoped system prompts (PCI DSS citation specialist; audit data interpreter) rather than a general-purpose prompt. A narrowly scoped Haiku call on a well-defined task matches Sonnet on domain accuracy at ~10× lower cost.
+
+**Extended thinking via `thinking: true`** switches to Opus with an extended reasoning budget. This is intentional — multi-hop compliance questions ("which requirements interact when tokens are stored?") benefit from explicit chain-of-thought that Sonnet shortcuts. The mode is opt-in because the latency and cost penalty (5–15 s, ~8× cost) is not justified for simple queries.
+
+**Tool allowlist as a system-level control** — the 5-tool allowlist enforced by `ToolValidator` is intentionally narrow and enforced in code, not in the model's system prompt alone. A system prompt saying "only use these tools" is not a security boundary — the validator is.
 
 ## Threat model
 
