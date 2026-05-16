@@ -1,0 +1,97 @@
+# Agent golden dataset — 8 cases covering different tool combinations and query types.
+#
+# expected_tools:    tools that MUST appear in the agent's tool_trace.
+# expected_keywords: substrings that must appear in the final response.
+# min_steps / max_steps: acceptable range for steps_taken.
+
+- id: agent_001
+  question: "Query the audit log for user alice and perform a PII risk assessment on the findings."
+  expected_tools:
+    - query_audit_log
+    - analyze_pii_risk
+  min_steps: 2
+  max_steps: 5
+  expected_keywords:
+    - "audit"
+    - "risk"
+  quality_criteria: "Must call both query_audit_log and analyze_pii_risk and synthesise results"
+
+- id: agent_002
+  question: "Retrieve all audit log entries and summarise any access to cardholder data."
+  expected_tools:
+    - query_audit_log
+  min_steps: 1
+  max_steps: 3
+  expected_keywords:
+    - "audit"
+    - "access"
+  quality_criteria: "Must call query_audit_log and summarise the records returned"
+
+- id: agent_003
+  question: "Assess the PII risk in the following text: 'Customer card 4111111111111111 exp 05/27 cvv 123'."
+  expected_tools:
+    - analyze_pii_risk
+  min_steps: 1
+  max_steps: 3
+  expected_keywords:
+    - "risk"
+    - "PAN"
+  quality_criteria: "Must call analyze_pii_risk and report HIGH risk due to PAN/CVV/EXPIRY"
+
+- id: agent_004
+  question: "How many hours are in 365 days? Use the calculator tool."
+  expected_tools:
+    - calculator
+  min_steps: 1
+  max_steps: 2
+  expected_keywords:
+    - "8760"
+    - "hours"
+  quality_criteria: "Must call calculator with 365*24 and return 8760"
+
+- id: agent_005
+  question: "Query the audit log for the last 30 days and calculate the average number of daily accesses."
+  expected_tools:
+    - query_audit_log
+    - calculator
+  min_steps: 2
+  max_steps: 5
+  expected_keywords:
+    - "average"
+    - "access"
+  quality_criteria: "Must call query_audit_log then calculator to compute the daily average"
+
+- id: agent_006
+  question: "What PCI DSS requirements apply to audit log retention? Use the compliance subagent."
+  expected_tools:
+    - call_subagent
+  min_steps: 1
+  max_steps: 3
+  expected_keywords:
+    - "10.5.1"
+    - "12 months"
+  quality_criteria: "Must call the compliance subagent and report Req 10.5.1 with 12-month retention"
+
+- id: agent_007
+  question: "Query audit logs for user bob, then ask the compliance subagent whether this access pattern is a concern."
+  expected_tools:
+    - query_audit_log
+    - call_subagent
+  min_steps: 2
+  max_steps: 5
+  expected_keywords:
+    - "audit"
+    - "compliance"
+  quality_criteria: "Must call query_audit_log first, then call_subagent with the compliance agent"
+
+- id: agent_008
+  question: "Analyse the PII risk in the text 'Contact us at test@example.com' and get compliance guidance."
+  expected_tools:
+    - analyze_pii_risk
+    - call_subagent
+  min_steps: 2
+  max_steps: 5
+  expected_keywords:
+    - "EMAIL"
+    - "risk"
+  quality_criteria: "Must call analyze_pii_risk then call_subagent for PCI DSS context on EMAIL handling"
