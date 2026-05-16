@@ -8,3 +8,6 @@ infra/terraform/.terraform/
 infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
 .idea/
+
+# draw.io auto-backups
+*.bkp

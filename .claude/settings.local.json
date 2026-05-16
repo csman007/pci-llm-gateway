@@ -44,7 +44,9 @@
       "Bash(python3 *)",
       "Bash(python3 -c \"import sys; sys.path.insert\\(0, 'services/api-gateway'\\); import schemas; print\\(schemas.__file__\\)\")",
       "Bash(python3 -m pytest --tb=no -q --co)",
-      "Bash(python3 -m pytest --cov=services --cov-report=term-missing -m \"not eval\" --tb=short -q)"
+      "Bash(python3 -m pytest --cov=services --cov-report=term-missing -m \"not eval\" --tb=short -q)",
+      "Bash(/Applications/draw.io.app/Contents/MacOS/draw.io --help)",
+      "Bash(/Applications/draw.io.app/Contents/MacOS/draw.io *)"
     ]
   },
   "hooks": {
